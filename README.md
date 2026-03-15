@@ -15,7 +15,6 @@
 #### 3, Email Analytics Raw: Newsletter performance  (Open, Clicks).
 #### 4, Google PPC Raw: Search engine marketing spend and performance.
 #### 5, Meta Ads Raw: Social Media advertising metrics. 
-
 ### Key Technical Features
 
 #### Indempotent Scripts: All SQL scripts use IF NOT EXISTS and DROP TABLE IF EXISTS logic. This ensures the environment can be reset or redeployed safely without causing  system errors or accidental data loss.
@@ -31,5 +30,7 @@
 
 
 
-##### Roadmap: Database Schema Design -> 
+##### Roadmap: Database Schema Design -> Bronze Ingestion Script -> Silver Layer Data Cleaning -> Gold Layer Aggregations -> Dashboard Integration 
+
+
 
