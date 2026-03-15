@@ -1,2 +1,10 @@
 
-## Naming Convention
+# System Design Standard
+
+# Naming convention is a set of rules to follow when naming tables and columns in SQL.
+
+## General Rules 
+####- Never use SQL reserved keywords(e.g. select, table, user) as identifiers.
+####  If an entity is a user, name the table dim_user or account to avoid syntax errors and the need for brackets or double quotes
+#### - No Special Characters: Avoid spaces, hyphens, or dots in names. Stick strictly to alphanumeric characters and underscores to
+#### ensure 
