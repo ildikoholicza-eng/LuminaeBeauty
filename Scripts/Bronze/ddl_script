@@ -1,1 +1,130 @@
 
+/*
+================================================================================================================================
+The purpose of the script is to create the database tables.
+=================================================================================================================================
+*/
+
+-- ── 1a. Web Analytics ────────────────────────────────────────
+DROP TABLE IF EXISTS bronze.web_analytics;
+CREATE TABLE bronze.web_analytics (
+    session_id          VARCHAR(50),
+    session_date        VARCHAR(30),   -- mixed date formats
+    channel_grouping    VARCHAR(100),
+    source              VARCHAR(100),
+    medium              VARCHAR(100),
+    campaign            VARCHAR(200),
+    landing_page        VARCHAR(500),
+    device_category     VARCHAR(50),
+    pageviews           VARCHAR(20),
+    sessions            VARCHAR(10),
+    bounce              VARCHAR(10),
+    time_on_site_secs   VARCHAR(20),
+    converted           VARCHAR(10),
+    order_value_gbp     VARCHAR(30),   -- may contain £ or % typos
+    user_id             VARCHAR(50),
+    country             VARCHAR(100),
+    new_vs_returning    VARCHAR(100),
+   );
+   GO
+
+-- ── 1b. Meta Ads ─────────────────────────────────────────────
+DROP TABLE IF EXISTS bronze.meta_ads;
+CREATE TABLE bronze.meta_ads (
+    report_date             VARCHAR(30),
+    account_id              VARCHAR(50),
+    account_name            VARCHAR(200),
+    campaign_name           VARCHAR(200),
+    campaign_objective      VARCHAR(100),
+    adset_name              VARCHAR(200),
+    ad_name                 VARCHAR(200),
+    placement               VARCHAR(100),
+    impressions             VARCHAR(20),
+    reach                   VARCHAR(20),
+    clicks                  VARCHAR(20),
+    spend_gbp               VARCHAR(30),
+    ctr_pct                 VARCHAR(30),
+    cpc_gbp                 VARCHAR(30),
+    conversions             VARCHAR(20),
+    conversion_value_gbp    VARCHAR(30),
+    roas                    VARCHAR(30),
+    frequency               VARCHAR(30),
+    currency                VARCHAR(20),
+   
+);
+GO
+
+-- ── 1c. Google PPC ───────────────────────────────────────────
+DROP TABLE IF EXISTS bronze.google_ppc;
+CREATE TABLE bronze.google_ppc (
+    Date                    VARCHAR(30),
+    Customer_ID             VARCHAR(50),
+    Campaign                VARCHAR(200),
+    Network                 VARCHAR(100),
+    Match_Type              VARCHAR(50),
+    Keyword                 VARCHAR(200),
+    Impressions             VARCHAR(20),
+    Clicks                  VARCHAR(20),
+    Cost_GBP                VARCHAR(30),
+    CTR                     VARCHAR(30),
+    Avg_CPC                 VARCHAR(30),
+    Conversions             VARCHAR(20),
+    Conv_Value_GBP          VARCHAR(30),
+    Conv_Rate_Pct           VARCHAR(30),
+    Quality_Score           VARCHAR(10),
+    Impression_Share_Pct    VARCHAR(30),
+    Device                  VARCHAR(50),
+    Currency_Code           VARCHAR(20),
+   
+);
+GO
+
+-- ── 1d. Email Analytics ──────────────────────────────────────
+DROP TABLE IF EXISTS bronze.email_analytics;
+CREATE TABLE bronze.email_analytics (
+    send_date               VARCHAR(30),
+    campaign_id             VARCHAR(50),
+    campaign_name           VARCHAR(200),
+    email_type              VARCHAR(100),
+    subject_line            VARCHAR(500),
+    total_sent              VARCHAR(20),
+    delivered               VARCHAR(20),
+    bounced                 VARCHAR(20),
+    opened                  VARCHAR(20),
+    clicked                 VARCHAR(20),
+    unsubscribed            VARCHAR(20),
+    open_rate_pct           VARCHAR(30),
+    click_to_open_rate      VARCHAR(30),
+    conversions             VARCHAR(20),
+    revenue_gbp             VARCHAR(30),
+    esp_platform            VARCHAR(100),
+    list_segment            VARCHAR(200),
+
+  );
+  GO
+
+-- ── 1e. Orders / Conversions ─────────────────────────────────
+DROP TABLE IF EXISTS bronze.orders;
+CREATE TABLE bronze.orders (
+    order_id                VARCHAR(50),
+    order_date              VARCHAR(30),
+    order_status            VARCHAR(50),
+    customer_id             VARCHAR(50),
+    customer_email          VARCHAR(200),
+    product_name            VARCHAR(200),
+    product_sku             VARCHAR(50),
+    quantity                VARCHAR(10),
+    unit_price_gbp          VARCHAR(30),
+    discount_gbp            VARCHAR(30),
+    subtotal_gbp            VARCHAR(30),
+    shipping_gbp            VARCHAR(30),
+    order_total_gbp         VARCHAR(30),
+    attributed_channel      VARCHAR(100),
+    attributed_campaign     VARCHAR(200),
+    attributed_source       VARCHAR(100),
+    session_id              VARCHAR(50),
+    payment_method          VARCHAR(50),
+    is_new_customer         VARCHAR(10),
+    coupon_code             VARCHAR(50),
+ );  
+GO
