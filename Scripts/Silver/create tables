@@ -1,1 +1,17 @@
 
+CREATE TABLE silver.email_analytics (
+    send_date DATE,                                  -- the date the email was sent
+    campaign_id VARCHAR(100) DEFAULT 'N/A',           -- campaign identifier
+    campaign_name VARCHAR
+    email_type VARCHAR(50) DEFAULT 'N/A',           -- type/category of email
+    subject_line VARCHAR(255) DEFAULT 'N/A',       -- subject of the email
+       -- cleaned subscriber list segment
+     total_sent INT DEFAULT 0,                        -- total emails sent
+    total_bounced INT DEFAULT 0,                     -- total bounced emails
+    total_clicked INT DEFAULT 0,                     -- total clicked emails
+    total_conversions INT DEFAULT 0                  -- total conversions
+);
+calc_open_rate FLOAT DEFAULT 0,                  -- open rate (0 if NULL)
+    calc_conversionrate FLOAT DEFAULT 0,            -- conversion rate (0 if NULL)
+        list_segment VARCHAR(100) DEFAULT 'N/A',  
+   
