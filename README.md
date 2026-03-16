@@ -1,6 +1,8 @@
 # LuminaeBeauty
 ## Project Overview 
 #### This project demonstrates the design and implementation of a professional Data warehouse using Microsoft SQL Server(T-SQL). It follows the Medallion Architecture to transform raw, synthetic e-commerce data into actionable business intelligence. The goal is to provide a clean, reliable " Single Source of Truth" for the company moving from messy ingestion to high-value reporting.
+#### Data Source: Import data from 5 sources: e-commerce orders, Meta ads, Google PPC, Email Analytics, Web Analytics.
+
 
 ### The Architecture
 #### I have implemented a three-layer Medallion system to ensure data integrity and scalability:
