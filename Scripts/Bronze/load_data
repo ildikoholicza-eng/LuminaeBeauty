@@ -1,1 +1,64 @@
 
+
+/*
+============================================================================================
+
+Stored Procedure: Load Bronze Layer (Source-> Bronze)
+
+============================================================================================
+/*
+-----------------------------------------------------------------------------------
+-- 1. CREATE STORED PROCEDURE
+-- This is a reusable tool that loads any of your marketing CSV files.
+-----------------------------------------------------------------------------------
+*/
+CREATE PROCEDURE bronze.pr_load_bronze_data
+    @table_name  VARCHAR(100), -- Which table are we filling?
+    @file_path   VARCHAR(500), -- Where is the file on your PC?
+    @source_file VARCHAR(200)  -- What is the name of the file?
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- These variables build the SQL commands based on the names you provide
+    DECLARE @bulk_sql   NVARCHAR(MAX);
+    DECLARE @update_sql NVARCHAR(MAX);
+
+    BEGIN TRY
+        PRINT '-------------------------------------------------------';
+        PRINT 'Processing: ' + @table_name;
+
+        -- 1. BULK INSERT: Moves data from CSV into the Table
+        SET @bulk_sql = '
+            BULK INSERT bronze.' + QUOTENAME(@table_name) + '
+            FROM ''' + @file_path + '''
+            WITH (
+                FORMAT = ''CSV'',
+                FIRSTROW = 2,
+                FIELDTERMINATOR = '',''
+            );';
+
+        EXEC sp_executesql @bulk_sql;
+
+        -- 2. UPDATE METADATA: Fills in the 'ingested_at' and 'source_file' columns
+        -- This only updates rows where 'ingested_at' is currently NULL (the new rows)
+        SET @update_sql = '
+            UPDATE bronze.' + QUOTENAME(@table_name) + '
+            SET ingested_at = SYSUTCDATETIME(),
+                source_file = @file_name_param
+            WHERE ingested_at IS NULL;';
+
+        EXEC sp_executesql @update_sql, 
+                           N'@file_name_param VARCHAR(200)', 
+                           @file_name_param = @source_file;
+
+        PRINT '>>> SUCCESS: ' + @table_name + ' loaded.';
+
+    END TRY
+    BEGIN CATCH
+        -- If the file path is wrong or the table doesn't exist, this tells you why
+        PRINT '!!! ERROR: Could not load ' + @table_name;
+        PRINT 'Error Message: ' + ERROR_MESSAGE();
+    END CATCH
+END;
+GO
