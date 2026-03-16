@@ -1,1 +1,60 @@
+/* This script creates a new database for LumieaBeauty. 
+
+===================================================================
+Create Database and Schemas
+===================================================================
+Script Purpose:
+This Script creates a new database named 'LumineaBeauty' after checking if it exists and creates the missing schemas, not executing if it is already there.
+Additionally, the script sets up three schemas within the database: 'bronze', 'silver', and 'gold'. 
+============================================================================================================
+============================================================================================================
+Warning!
+
+Use this script if you want to drop the entire 'LumineaBeauty' database if it exists.
+All data in the database will be permanently deleted. Proceed with caution and ensure you have 
+proper backups before running this script. It also makes sure you are the only one who has access to the database 
+while working on it. This is the reset method.
+
+USE MASTER;
+GO 
+-- Drop and recreate the 'LumineaBeauty' database
+IF EXISTS (SELECT 1 FROM sys.databases WHERE name= 'Datawarehouse')
+BEGIN
+ALTER DATABASE Datawarehouse SET SINGLE USE WITH ROLLBACK IMMEDIATE ;
+DROP DATABASE Datawarehouse;
+END;
+GO  */
+
+===================================================================================================================
+===================================================================================================================
+*/
+
+
+--Switch to master
+USE MASTER;
+GO
+--Create the database. Defensive method, it only creates what is missing and not touches whta is there.
+
+
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'bronze') EXEC('CREATE SCHEMA bronze');
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'silver') EXEC('CREATE SCHEMA silver');
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'gold')   EXEC('CREATE SCHEMA gold');
+GO
+
+
+CREATE DATABASE LuminaeBeauty;
+GO
+--Switch to using the newly created database 
+USE LuminaeBeauty;
+
+--Create the Schemas
+CREATE SCHEMA bronze;
+GO
+
+CREATE SCHEMA silver;
+GO
+
+CREATE SCHEMA gold;
+GO
+--Check if my schemas are created, click the left-hand side menu pane, LumieaBeauty, Security, Schemas
 
