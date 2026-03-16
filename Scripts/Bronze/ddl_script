@@ -1,7 +1,7 @@
 
 /*
 ================================================================================================================================
-The purpose of the script is to create the database tables.
+The purpose of the script is to create the database tables. It drops tables if exist and recreates. 
 =================================================================================================================================
 */
 
