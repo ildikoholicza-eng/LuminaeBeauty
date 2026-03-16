@@ -123,6 +123,10 @@ source_file = 'orders_raw.csv';
 
 GO
 /*
+
+/*
+========================================================================================================================================================
+*/
 -- Check if your insert and meta data is there and data is in the right columns 
 SELECT TOP 100
 *
