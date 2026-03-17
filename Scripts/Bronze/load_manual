@@ -1,5 +1,5 @@
-/* This is the manual script I followed to insert data in the tables. The avoid duplication table needs to be droped and recreated and after 
-that run bulk insert and the script to create the meta data 
+/* This is the manual script I followed to insert data into the tables. The avoid duplication table needs to be dropped and recreated, and after 
+that run bulk insert and the script to create the metadata 
 */
 
 CREATE PROCEDURE bronze.pr_load_manual
@@ -9,24 +9,7 @@ WITH (FORMAT='CSV',
 FIRSTROW = 2,
 FIELDTERMINATOR = ','
 );
-
 GO
---Add Metadata columns
-ALTER TABLE bronze.web_analytics
-ADD ingested_at DATETIME2 DEFAULT SYSUTCDATETIME (),
-    source_file VARCHAR (200);
-GO
--- Insert Meta data 
-UPDATE bronze.web_analytics
-SET 
-ingested_at = SYSUTCDATETIME (),
-source_file = 'web_analytics_raw.csv'
-;
-GO
-
-/*
-------------------------------------------------------------------------------------------------------------------------
-*/
 BULK INSERT bronze.meta_ads
 FROM 'C:\Users\User1\Downloads\marketingdatasampleset\meta_ads_raw.csv'
 WITH (FORMAT='CSV', 
@@ -34,22 +17,6 @@ FIRSTROW = 2,
 FIELDTERMINATOR = ','
 );
 GO
-
---Add Metadata columns
-ALTER TABLE bronze.meta_ads
-ADD ingested_at DATETIME2 DEFAULT SYSUTCDATETIME (),
-    source_file VARCHAR (200);
-GO
--- Insert Meta data 
-UPDATE bronze.meta_ads
-SET 
-ingested_at = SYSUTCDATETIME (),
-source_file = 'meta_ads_raw.csv'
-GO
-/*
-------------------------------------------------------------------------------------------------------------------------------------
-*/
-
 BULK INSERT bronze.google_ppc
 FROM 'C:\Users\User1\Downloads\marketingdatasampleset\google_ppc_raw.csv'
 WITH (FORMAT='CSV', 
@@ -57,24 +24,6 @@ FIRSTROW = 2,
 FIELDTERMINATOR = ','
 );
 GO
-
---Add Metadata columns
-ALTER TABLE bronze.google_ppc
-ADD ingested_at DATETIME2 DEFAULT SYSUTCDATETIME (),
-    source_file VARCHAR (200);
-GO
--- Insert Meta data 
-UPDATE bronze.google_ppc
-SET 
-ingested_at = SYSUTCDATETIME (),
-source_file = 'google_ppc_raw.csv'
-;
-Go
-
-/*
------------------------------------------------------------------------------------
-*/
-
 BULK INSERT bronze.email_analytics
 FROM 'C:\Users\User1\Downloads\marketingdatasampleset\email_analytics_raw.csv'
 WITH (FORMAT='CSV', 
@@ -82,25 +31,6 @@ FIRSTROW = 2,
 FIELDTERMINATOR = ','
 );
 GO
-
-
---Add Metadata columns
-ALTER TABLE bronze.email_analytics
-ADD ingested_at DATETIME2 DEFAULT SYSUTCDATETIME (),
-    source_file VARCHAR (200);
-GO
--- Insert Meta data 
-UPDATE bronze.email_analytics
-SET 
-ingested_at = SYSUTCDATETIME (),
-source_file = 'email_analytics_raw.csv';
-
-GO
-
-/*
-----------------------------------------------------------------------------------------------------
-*/
-
 BULK INSERT bronze.orders
 FROM 'C:\Users\User1\Downloads\marketingdatasampleset\orders_raw.csv'
 WITH (FORMAT='CSV', 
@@ -108,26 +38,78 @@ FIRSTROW = 2,
 FIELDTERMINATOR = ','
 );
 GO
+/* Add Meta Data 
+======================================================================================================================================================= 
+*/ 
+--Add Metadata columns
+ALTER TABLE bronze.web_analytics
+ADD ingested_at DATETIME2 DEFAULT SYSUTCDATETIME (),
+    source_file VARCHAR (200);
+GO
+-- Insert metadata 
+UPDATE bronze.web_analytics
+SET 
+ingested_at = SYSUTCDATETIME (),
+source_file = 'web_analytics_raw.csv'
+;
+GO
+-------------------------------------------------------------------------------------
+--Add Metadata columns
+ALTER TABLE bronze.meta_ads
+ADD ingested_at DATETIME2 DEFAULT SYSUTCDATETIME (),
+    source_file VARCHAR (200);
+GO
+-- Insert metadata 
+UPDATE bronze.meta_ads
+SET 
+ingested_at = SYSUTCDATETIME (),
+source_file = 'meta_ads_raw.csv'
+GO
+---------------------------------------------------------------------------------------------------
 
+--Add Metadata columns
+ALTER TABLE bronze.google_ppc
+ADD ingested_at DATETIME2 DEFAULT SYSUTCDATETIME (),
+    source_file VARCHAR (200);
+GO
+-- Insert metadata 
+UPDATE bronze.google_ppc
+SET 
+ingested_at = SYSUTCDATETIME (),
+source_file = 'google_ppc_raw.csv'
+;
+Go
+--Add Metadata columns
+ALTER TABLE bronze.email_analytics
+ADD ingested_at DATETIME2 DEFAULT SYSUTCDATETIME (),
+    source_file VARCHAR (200);
+GO
+-- Insert metadata 
+UPDATE bronze.email_analytics
+SET 
+ingested_at = SYSUTCDATETIME (),
+source_file = 'email_analytics_raw.csv';
+
+GO
 
 --Add Metadata columns
 ALTER TABLE bronze.orders
 ADD ingested_at DATETIME2 DEFAULT SYSUTCDATETIME (),
     source_file VARCHAR (200);
 GO
--- Insert Meta data 
+-- Insert metadata 
 UPDATE bronze.orders
 SET 
 ingested_at = SYSUTCDATETIME (),
 source_file = 'orders_raw.csv';
 
 GO
-/*
+
 
 /*
 ========================================================================================================================================================
 */
--- Check if your insert and meta data is there and data is in the right columns 
+-- Check if your insert and metadata are there and data is in the right columns 
 SELECT TOP 100
 *
 FROM [insert the table names]
