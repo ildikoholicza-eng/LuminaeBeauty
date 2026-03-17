@@ -1,1 +1,106 @@
+/* EMAIL ANALYTICS 
+=====================================================================================================================
+=====================================================================================================================
 
+*/
+
+
+SELECT
+
+/* cleaned date */
+COALESCE(
+    TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 23),
+    TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 103),
+    TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 110),
+    TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 106)
+) AS send_date,
+
+/* campaign id */
+ISNULL(NULLIF(LOWER(TRIM(campaign_id)),''),'n/a') AS campaign_id,
+
+/* campaign name */
+CASE 
+    WHEN campaign_name IS NULL OR (TRIM(campaign_name) = '' )
+    THEN 'n/a'
+    ELSE LOWER(TRIM(campaign_name))
+END AS campaign_name,
+
+/* email type */
+CASE 
+    WHEN email_type IS NULL OR (TRIM(email_type) = '' )
+    THEN 'n/a'
+    ELSE LOWER(TRIM(email_type))
+END AS email_type,
+
+/* subject line */
+LOWER(ISNULL(NULLIF(NULLIF(TRIM(subject_line),' '),'NULL'),
+        'n/a'
+    )
+) AS subject_line,
+
+/* cleaned metrics */
+
+ISNULL(
+    ABS(TRY_CAST(TRIM(total_sent) AS INT)),
+    ABS(ISNULL(TRY_CAST(TRIM(delivered) AS INT),0)) +
+    ABS(ISNULL(TRY_CAST(TRIM(bounced) AS INT),0))
+) AS total_sent,
+
+ABS(ISNULL(TRY_CAST(TRIM(delivered) AS INT),0)) AS delivered,
+ABS(ISNULL(TRY_CAST(TRIM(bounced) AS INT),0)) AS bounced,
+ABS(ISNULL(TRY_CAST(TRIM(opened) AS INT),0)) AS opened,
+ABS(ISNULL(TRY_CAST(TRIM(clicked) AS INT),0)) AS clicked,
+ABS(ISNULL(TRY_CAST(TRIM(unsubscribed) AS INT),0)) AS unsubscribed,
+ABS(ISNULL(TRY_CAST(TRIM(conversions) AS INT),0)) AS conversions,
+
+ISNULL(TRY_CAST(TRIM(revenue_gbp) AS FLOAT),0) AS revenue_gbp,
+
+/* platform & segment */
+
+ISNULL(LOWER(TRIM(esp_platform)), 'n/a') AS esp_platform,
+
+/*  list_segment */
+CASE
+    WHEN LEN(REPLACE(REPLACE(REPLACE(REPLACE(list_segment,
+    CHAR(9), ''),                                                            -- tab
+    CHAR(10), ''),                                                           -- line feed
+    CHAR(13), ''),                                                           -- carriage return
+    CHAR(160), '')                                                           -- non-breaking space
+    ) = 0 OR list_segment IS NULL
+    THEN 'n/a'
+    ELSE LOWER(LTRIM(RTRIM(list_segment)))
+END AS list_segment,
+
+
+
+/* calculated metrics */
+
+ISNULL(
+ROUND(
+    CAST(ABS(ISNULL(TRY_CAST(TRIM(opened) AS INT),0)) AS FLOAT) /
+    NULLIF(ABS(ISNULL(TRY_CAST(TRIM(delivered) AS INT),0)),0) * 100
+,2),0) AS calc_open_rate,
+
+ISNULL(
+ROUND(
+    CAST(ABS(ISNULL(TRY_CAST(TRIM(clicked) AS INT),0)) AS FLOAT) /
+    NULLIF(ABS(ISNULL(TRY_CAST(TRIM(opened) AS INT),0)),0) * 100
+,2),0) AS calc_conversion_rate
+
+FROM bronze.email_analytics
+
+/* remove rows with invalid send dates */
+
+WHERE COALESCE(
+    TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 23),
+    TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 103),
+    TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 110),
+    TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 106)
+) IS NOT NULL;
+
+/* 
+==================================================================================================================================
+=================================================================================================================================
+
+GOOGLE PPC 
+*/
