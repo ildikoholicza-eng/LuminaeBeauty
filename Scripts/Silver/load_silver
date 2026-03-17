@@ -274,4 +274,71 @@ WHERE report_date is not null
 */
 --ORDERS
 
+SELECT
+--Order_id
+COALESCE(LOWER(TRIM(order_id)), 'unknown_id') AS order_id_clean,
+--Date
+COALESCE(
+    TRY_CONVERT(date, NULLIF(TRIM(order_date), ''), 23),
+    TRY_CONVERT(date, NULLIF(TRIM(order_date), ''), 103),
+    TRY_CONVERT(date, NULLIF(TRIM(order_date), ''), 110),
+    TRY_CONVERT(date, NULLIF(TRIM(order_date), ''), 106),
+    '1900-01-01'
+) AS order_date,
+
+--Falg refund
+
+COALESCE(LOWER(TRIM(order_status)), 'unknown') as order_status,
+CASE 
+WHEN 
+LOWER(TRIM(order_status)) = 'refunded' THEN 1 ELSE 0
+END AS is_refund,
+--Standardized lowercase, trim, null is n/a
+COALESCE(LOWER(TRIM(customer_id)), 'n/a') AS customer_id,
+COALESCE(LOWER(TRIM(customer_email)), 'n/a') AS customer_email,
+COALESCE(LOWER(TRIM(product_name)), 'n/a') AS product_name,
+COALESCE(LOWER(TRIM(product_sku)), 'n/a') AS product_sku,
+--numbers are positive and calculation ready for gold layer
+  --Quantity
+    ISNULL(ABS(TRY_CAST(TRIM(quantity) AS INT)), 0) AS quantity,
+    -- UnitPrice
+    ISNULL(ABS(TRY_CAST(TRIM(unit_price_gbp) AS DECIMAL(18,2))), 0) AS unit_price_gbp,
+
+    -- Discount
+    ISNULL(ABS(TRY_CAST(TRIM(discount_gbp) AS DECIMAL(18,2))), 0) AS discount_gbp,
+
+    -- Subtotal
+    ISNULL(ABS(TRY_CAST(TRIM(subtotal_gbp) AS DECIMAL(18,2))), 0) AS subtotal_gbp,
+
+    -- Shipping
+    ISNULL(ABS(TRY_CAST(TRIM(shipping_gbp) AS DECIMAL(18,2))), 0) AS shipping_gbp,
+
+    ISNULL(ABS(TRY_CAST(TRIM(TRANSLATE(order_total_gbp, '€$%£', '    ')) 
+    AS DECIMAL(18,2))), 0) AS order_total_gbp,
+
+
+COALESCE(LOWER(TRIM(attributed_channel)), 'n/a') AS attributed_channel,
+COALESCE(LOWER(TRIM(attributed_campaign)), 'n/a') AS attributed_campaign,
+COALESCE(LOWER(TRIM(attributed_source)), 'n/a') AS attributed_source,
+COALESCE(LOWER(TRIM(session_id)), 'n/a') AS session_id,
+COALESCE(LOWER(TRIM(payment_method)), 'n/a') AS payment_method,
+CAST(
+    CASE 
+        WHEN LOWER(RTRIM(LTRIM(CAST(is_new_customer AS VARCHAR(20))))) = 'true' THEN 1
+        WHEN RTRIM(LTRIM(CAST(is_new_customer AS VARCHAR(20)))) = '1' THEN 1
+        ELSE 0
+    END AS INT
+) AS new_customer_flag,
+
+
+--Fix the loat of hidden characters
+LOWER(CAST(ISNULL(NULLIF(TRIM(
+                    REPLACE(REPLACE(REPLACE(REPLACE(coupon_code,
+                        CHAR(9), ''),   
+                        CHAR(10), ''), 
+                        CHAR(13), ''),  
+                        CHAR(160), '')),''), 'no coupon')AS VARCHAR(100))) AS coupon_code
+
+FROM bronze.orders
+
 
