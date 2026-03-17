@@ -185,3 +185,93 @@ LOWER(CAST(ISNULL( NULLIF(TRIM(
 
 FRom bronze.google_ppc
 WHERE Date is not null AND Customer_ID is not null
+
+/*=======================================================================================================================================
+========================================================================================================================================
+*/
+--META ADS
+--Fixe date formats
+
+SELECT
+COALESCE(
+    TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 23),
+    TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 103),
+    TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 110),
+    TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 106)
+) AS report_date,
+
+--Fix accoun_id
+COALESCE(LOWER(TRIM(CAST(account_id AS VARCHAR (50)))),'n/a') AS account_id,
+--Fix account_name
+CASE 
+    WHEN account_name IS NULL THEN 'Luminea Beauty LTD' 
+    ELSE account_name
+    END AS account_name,
+--Fix campaign_name
+CASE 
+    WHEN campaign_name IS NULL THEN 'n/a'
+    WHEN TRIM(campaign_name) = '' THEN 'n/a'
+    WHEN LOWER(TRIM(campaign_name)) LIKE '%null%' THEN 'n/a'
+    ELSE LOWER(TRIM(CAST(campaign_name AS VARCHAR(100))))
+END AS campaign_name,
+
+--Fix campaign_objective
+CASE 
+    WHEN campaign_objective IS NULL THEN 'n/a'
+    WHEN TRIM(campaign_objective) = ' ' THEN 'n/a'
+    ELSE(LOWER(TRIM(CAST(campaign_objective AS VARCHAR(100)))))
+    END AS campign_objective,
+
+--Fix adset_name
+    COALESCE(LOWER(TRIM(CAST(NULLIF(adset_name, ' ' )AS VARCHAR (100)))), 'n/a')
+    AS adset_name,
+--Fix ad_name
+    COALESCE(LOWER(TRIM(CAST(NULLIF(ad_name, ' ' )AS VARCHAR (100)))), 'n/a')
+    AS ad_name,
+--Fix placement
+    COALESCE(LOWER(TRIM(CAST(NULLIF(placement, ' ' )AS VARCHAR (100)))), 'n/a')
+    AS placement,
+    
+--Impressiony
+    ABS(ISNULL(TRY_CAST(NULLIF(TRIM(impressions), ' ') AS INT), 0)) AS impressions,
+--Reach    
+    ABS(ISNULL(TRY_CAST(NULLIF(TRIM(reach), ' ') AS INT) ,0)) AS reach,
+--Clicks    
+    ABS(ISNULL(TRY_CAST(NULLIF(TRIM(clicks), ' ') AS INT) ,0)) AS clicks,
+       
+--Pupolate missing spend where possible by using spend × clicks    
+       TRy_CAST(
+    CASE
+        WHEN
+            TRY_CAST(NULLIF(TRIM(spend_gbp), ' ') AS DECIMAL (18,2)) IS NULL 
+            THEN
+            (clicks *ISNULL(TRY_CAST(cpc_gbp AS DECIMAL(18,2)),0))
+            ELSE TRY_CAST(spend_gbp AS DECIMAL (18,2))
+            END AS DECIMAL(18,2)) as spend_gbp ,
+
+--Clicks
+      ABS(ISNULL(TRY_CAST(NULLIF(TRIM(clicks), ' ') AS DECIMAL(18,2)) ,0)) AS clicks,
+--Cpc 
+      ABS(ISNULL(TRY_CAST(NULLIF(TRIM(cpc_gbp), ' ') AS DECIMAL(18,2)),0)) AS cpc_gbp,
+--Conversion value
+      ABS(COALESCE(TRY_CAST(REPLACE(REPLACE(TRIM(conversion_value_gbp), '%',' '), '$',' ') AS DECIMAL(18,2)),0))
+          AS conersion_value_gbp,
+--Fequency
+        ABS(ISNULL(TRY_CAST(NULLIF(TRIM(frequency), ' ') AS DECIMAL(18,2)),0)) AS frequency,
+--Currency
+            LOWER(CAST(ISNULL( NULLIF(TRIM(
+                    REPLACE(REPLACE(REPLACE(REPLACE(currency,
+                        CHAR(9), ''),   
+                        CHAR(10), ''), 
+                        CHAR(13), ''),  
+                        CHAR(160), '')),''), 'gbp') AS CHAR(4))) AS currency
+
+FROM bronze.meta_ads
+WHERE report_date is not null
+
+/*===================================================================================================================================
+=====================================================================================================================================
+*/
+--ORDERS
+
+
