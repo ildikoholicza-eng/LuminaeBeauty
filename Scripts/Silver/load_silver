@@ -104,3 +104,84 @@ WHERE COALESCE(
 
 GOOGLE PPC 
 */
+/* During cleaning process I encountered to some missing values did not make sense. Since I can1t sit with stakeholders
+and data source controller I made the decision to go with Google PPC logic. 
+
+SELECT
+COALESCE(
+    TRY_CONVERT(date, NULLIF(TRIM(date), ''), 23),
+    TRY_CONVERT(date, NULLIF(TRIM(date), ''), 103),
+    TRY_CONVERT(date, NULLIF(TRIM(date), ''), 110),
+    TRY_CONVERT(date, NULLIF(TRIM(date), ''), 106)
+) AS event_date,
+
+customer_id,
+CASE 
+        WHEN Campaign IS NULL OR LEN(LTRIM(RTRIM(Campaign))) = 0 THEN 'unatributed'
+        WHEN(RTRIM(LTRIM(Campaign))) ='null' THEN 'unatributed'
+        WHEN(RTRIM(LTRIM(Campaign))) = 'DSA_AllProducts' THEN 'dsa_all_products'
+        WHEN(RTRIM(LTRIM(Campaign))) = 'RLSA_CartAbandoners' THEN 'rlsa_cart_abandoners'
+        ELSE LOWER(LTRIM(RTRIM(campaign)))
+    END AS campaign,
+   
+
+ CASE 
+
+    WHEN Campaign LIKE '%dsa%' OR Campaign LIKE '%rlsa%' 
+    THEN 'search'
+    WHEN Network is null or 
+    TRIM(Network) = ' 'THEN 'n/a'
+    ELSE LOWER(TRIM(Network))
+END AS Network,
+CASE 
+    WHEN Match_Type IS NULL OR TRIM(Match_Type) = ' ' OR 
+    TRIM(Match_Type) = 'null' THEN 'n/a' 
+    ELSE 
+    LOWER(TRIM(Match_Type))
+    END AS Match_Type,
+CASE 
+    WHEN Keyword IS NULL OR TRIM(Keyword) = ' '  OR 
+    TRIM(Keyword) = 'null' 
+    THEN 'n/a'
+    ELSE LOWER(TRIM(Keyword)) 
+    END AS Keyword,
+CASE 
+    WHEN TRY_CAST(Impressions AS INT) >0 THEN TRY_CAST(Impressions AS INT)
+    WHEN TRY_CAST(Clicks AS INT) >0 THEN TRY_CAST(Clicks AS INT)
+    ELSE 0
+    END AS Impressions,
+    ISNULL 
+    (CASE 
+        WHEN TRY_CAST(Clicks AS INT) <0  THEN 0 
+        ELSE TRY_CAST(Clicks AS INT)
+        END, 0 )AS Clicks,
+   ISNULL
+   (CASE WHEN TRY_CAST(trim(Cost_Gbp) AS DECIMAL(18,2)) <0 THEN 0
+   ELSE TRY_CAST(TRIM(Cost_Gbp) AS DECIMAL (18,2))
+   END, 0.00 )AS Cost_Gbp,
+
+    ISNULL
+    (CASE WHEN TRY_CAST(TRIM(Conversions) AS INT)< 0 THEN 0 
+ELSE 
+TRY_CAST(TRIM(Conversions) AS INT)
+END , 0) AS Conversions,
+
+ISNULL(
+CASE WHEN TRY_CAST(TRIM(Conv_Value_GBP) AS DECIMAL (18,2)) < 0 then 0 
+ELSE 
+TRY_CAST(TRIM(Conv_Value_GBP) AS DECIMAL(18,2))
+END, 0.00 ) AS Conv_Value_GBP,
+
+ISNULL
+(TRY_CAST(NULLIF(TRIM(Quality_Score), 'N/A') AS INT), 0)
+AS Quality_Score, 
+
+LOWER(CAST(ISNULL( NULLIF(TRIM(
+                    REPLACE(REPLACE(REPLACE(REPLACE(Currency_Code,
+                        CHAR(9), ''),   
+                        CHAR(10), ''), 
+                        CHAR(13), ''),  
+                        CHAR(160), '')),''), 'gbp') AS CHAR(4))) AS Currency_Code
+
+FRom bronze.google_ppc
+WHERE Date is not null AND Customer_ID is not null
