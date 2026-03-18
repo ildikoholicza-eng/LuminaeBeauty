@@ -1,65 +1,125 @@
-/* EMAIL ANALYTICS 
-=====================================================================================================================
-=====================================================================================================================
+/*
+============================================================================================
 
-*/
+Stored Procedure: Load Silver Layer (Source-> Silver)
 
+============================================================================================
+
+Script Purpose:
+	It performs the following actions:
+	- Truncates the silver tables before loading data
+	- Uses the 'BULK INSERT' command to load from bronze tables into silver tables 
+	- Data is cleaned and standardized 
+
+	Parameters:
+		None.
+	This stored procedure does not accept any parameters or return any values.
+
+	Usage Example:
+	EXEC silver.load_silver;
+
+	========================================================================================
+	*/
+
+
+CREATE OR ALTER PROCEDURE silver.load_silver AS BEGIN
+
+	DECLARE @start_time DATETIME, @end_time DATETIME ,@batch_start_time DATETIME, @batch_end_time DATETIME;
+	BEGIN TRY
+	SET @batch_start_time = GETDATE();
+	PRINT '==================================================================================';
+	PRINT 'LOADING SILVER LAYER';
+	PRINT '==================================================================================';
+
+	PRINT '----------------------------------------------------------------------------------';
+	PRINT ' LOADING email_analytics table;
+	PRINT '----------------------------------------------------------------------------------';
+	  SET @start_time = GETDATE();
+	   PRINT '** Tuncating Table silver.email_analytics';
+	TRUNCATE TABLE silver.email_analytics;
+
+		INSERT INTO silver.email_analytics (
+		send_date, 
+	campaign_id,
+	campaign_name ,
+	email_type ,
+	subject_line ,
+	total_sent ,
+	delivered ,
+	bounced ,
+	opened ,
+	clicked ,
+	unsubscribed ,
+	conversions ,
+	revenue_gbp ,
+	esp_platform ,
+	list_segment ,
+	dwh_create_date)
+	
 
 SELECT
 
-/* cleaned date */
+--Fix date set null to 1900-01-01 to see we have a tracking problem
+
 COALESCE(
     TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 23),
     TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 103),
     TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 110),
-    TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 106)
+    TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 106),
+    '1900-01-01'
 ) AS send_date,
 
-/* campaign id */
-ISNULL(NULLIF(LOWER(TRIM(campaign_id)),''),'unknown') AS campaign_id,
+--Campaign id 
 
-/* campaign name */
+    ISNULL(NULLIF(LOWER(TRIM(campaign_id)),''),'unknown') AS campaign_id,
+
+--Campaign name 
+
 CASE 
     WHEN campaign_name IS NULL OR (TRIM(campaign_name) = '' )
     THEN 'unknown'
     ELSE LOWER(TRIM(campaign_name))
 END AS campaign_name,
 
-/* email type */
+--Email type
+
 CASE 
     WHEN email_type IS NULL OR (TRIM(email_type) = '' )
     THEN 'unknown'
     ELSE LOWER(TRIM(email_type))
 END AS email_type,
 
-/* subject line */
-LOWER(ISNULL(NULLIF(NULLIF(TRIM(subject_line),' '),'NULL'),
+--Subject line
+
+    LOWER(ISNULL(NULLIF(NULLIF(TRIM(subject_line),' '),'NULL'),
         'unknown'
     )
 ) AS subject_line,
 
-/* cleaned metrics */
+--Cleaned numbers 
 
-ISNULL(
-    ABS(TRY_CAST(TRIM(total_sent) AS INT)),
-    ABS(ISNULL(TRY_CAST(TRIM(delivered) AS INT),0)) +
-    ABS(ISNULL(TRY_CAST(TRIM(bounced) AS INT),0))
+    ISNULL(
+        ABS(TRY_CAST(TRIM(total_sent) AS INT)),
+        ABS(ISNULL(TRY_CAST(TRIM(delivered) AS INT),0)) +
+        ABS(ISNULL(TRY_CAST(TRIM(bounced) AS INT),0))
 ) AS total_sent,
 
-ABS(ISNULL(TRY_CAST(TRIM(delivered) AS INT),0)) AS delivered,
-ABS(ISNULL(TRY_CAST(TRIM(bounced) AS INT),0)) AS bounced,
-ABS(ISNULL(TRY_CAST(TRIM(opened) AS INT),0)) AS opened,
-ABS(ISNULL(TRY_CAST(TRIM(clicked) AS INT),0)) AS clicked,
-ABS(ISNULL(TRY_CAST(TRIM(unsubscribed) AS INT),0)) AS unsubscribed,
-ABS(ISNULL(TRY_CAST(TRIM(conversions) AS INT),0)) AS conversions,
+        ABS(ISNULL(TRY_CAST(TRIM(delivered) AS INT),0)) AS delivered,
+        ABS(ISNULL(TRY_CAST(TRIM(bounced) AS INT),0)) AS bounced,
+        ABS(ISNULL(TRY_CAST(TRIM(opened) AS INT),0)) AS opened,
+        ABS(ISNULL(TRY_CAST(TRIM(clicked) AS INT),0)) AS clicked,
+        ABS(ISNULL(TRY_CAST(TRIM(unsubscribed) AS INT),0)) AS unsubscribed,
+        ABS(ISNULL(TRY_CAST(TRIM(conversions) AS INT),0)) AS conversions,
+--Revenue
 
-ISNULL(TRY_CAST(TRIM(revenue_gbp) AS FLOAT),0) AS revenue_gbp,
+    ISNULL(TRY_CAST(TRIM(revenue_gbp) AS DECIMAL(18,2)),0) AS revenue_gbp,
 
-/* platform & segment */
+--Platform segment
 
-ISNULL(LOWER(TRIM(esp_platform)), 'unknown') AS esp_platform,
+    ISNULL(LOWER(TRIM(esp_platform)), 'unknown') AS esp_platform,
 
-/*  list_segment */
+--List segment
+
 CASE
     WHEN LEN(REPLACE(REPLACE(REPLACE(REPLACE(list_segment,
     CHAR(9), ''),                                                            -- tab
@@ -69,53 +129,55 @@ CASE
     ) = 0 OR list_segment IS NULL
     THEN 'unknown'
     ELSE LOWER(LTRIM(RTRIM(list_segment)))
-END AS list_segment,
+END AS list_segment
+
+--Left out calculated and agregated data as they are based on squwed numbers we do aggregation in gold layer 
+
+FROM bronze.email_analytics;
+
+	SET @end_time = GETDATE ();
+		PRINT'>> Load Duration:'+ CAST (DATEDIFF( second, @start_time, @end_time) AS VARCHAR ) + 'seconds';
+		PRINT'>>--------------------------------------------------------------------------------------<<'
+
+	/*google_ppc*/
+	SET @start_time = GETDATE();
+	PRINT '** Tuncating Table silver.google_ppc';
+	
+	TRUNCATE TABLE silver.google_ppc ;
 
 
+	INSERT INTO silver.google_ppc(
+		event_date,
+	customer_id,
+	campaign ,
+	Network ,
+	Match_Type,
+	Keyword ,
+	Impressions ,
+	Clicks,
+	Cost_Gbp ,
+	Conversions,
+	Conv_Value_Gbp,
+	Quality_Score ,
+	Currency_Code 
 
-/* calculated metrics */
+	)
 
-ISNULL(
-ROUND(
-    CAST(ABS(ISNULL(TRY_CAST(TRIM(opened) AS INT),0)) AS FLOAT) /
-    NULLIF(ABS(ISNULL(TRY_CAST(TRIM(delivered) AS INT),0)),0) * 100
-,2),0) AS calc_open_rate,
-
-ISNULL(
-ROUND(
-    CAST(ABS(ISNULL(TRY_CAST(TRIM(clicked) AS INT),0)) AS FLOAT) /
-    NULLIF(ABS(ISNULL(TRY_CAST(TRIM(opened) AS INT),0)),0) * 100
-,2),0) AS calc_conversion_rate
-
-FROM bronze.email_analytics
-
-/* remove rows with invalid send dates */
-
-WHERE COALESCE(
-    TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 23),
-    TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 103),
-    TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 110),
-    TRY_CONVERT(date, NULLIF(TRIM(send_date), ''), 106)
-) IS NOT NULL;
-
-/* 
-==================================================================================================================================
-=================================================================================================================================
-
-GOOGLE PPC 
-*/
-/* During the cleaning process, I encountered some missing values that did not make sense. Since I can't sit with stakeholders
-and data source controller, I made the decision to go with Google PPC logic. 
-
-SELECT
+	SELECT
 COALESCE(
     TRY_CONVERT(date, NULLIF(TRIM(date), ''), 23),
     TRY_CONVERT(date, NULLIF(TRIM(date), ''), 103),
     TRY_CONVERT(date, NULLIF(TRIM(date), ''), 110),
-    TRY_CONVERT(date, NULLIF(TRIM(date), ''), 106)
+    TRY_CONVERT(date, NULLIF(TRIM(date), ''), 106),
+    '1900-01-01'
 ) AS event_date,
 
-customer_id,
+--Customer id
+
+
+  COALESCE(LOWER(TRIM(CAST(customer_id AS VARCHAR (50)))),'unknown') AS customer_id,
+
+
 CASE 
         WHEN Campaign IS NULL OR LEN(LTRIM(RTRIM(Campaign))) = 0 THEN 'unatributed'
         WHEN(RTRIM(LTRIM(Campaign))) ='null' THEN 'unatributed'
@@ -183,21 +245,51 @@ LOWER(CAST(ISNULL( NULLIF(TRIM(
                         CHAR(13), ''),  
                         CHAR(160), '')),''), 'gbp') AS CHAR(4))) AS Currency_Code
 
-From bronze.google_ppc
-WHERE Date is not null AND Customer_ID is not null
+--Left out calculated and agregated data as they are based on squwed numbers we do aggregation in gold layer 
 
-/*=======================================================================================================================================
-========================================================================================================================================
-*/
---META ADS
---Fix date formats
+
+FRom bronze.google_ppc
+
+
+	   SET @end_time = GETDATE();
+	SET @end_time = GETDATE ();
+		PRINT'>> Load Duration:'+ CAST (DATEDIFF( second, @start_time, @end_time) AS VARCHAR ) + 'seconds';
+		PRINT'>>--------------------------------------------------------------------------------------<<'
+
+
+	   /*.meata_ads*/
+	   SET @start_time = GETDATE();
+	   PRINT '** Tuncating Table silver.meta_ads';
+	TRUNCATE TABLE silver.meta_ads;
+
+
+	   INSERT INTO silver.meta_ads(
+	report_date,
+	account_id ,
+	account_name,
+	campaign_name,
+	campaign_objective ,
+	adset_name,
+	ad_name ,
+	placement ,
+	impressions ,
+	reach ,
+	clicks,
+	spend_gbp,
+	cpc_gbp,
+	conversion_value_gbp,
+	frequency ,
+	currency
+	
+)
 
 SELECT
 COALESCE(
     TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 23),
     TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 103),
     TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 110),
-    TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 106)
+    TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 106),
+    '1900-01-01'
 ) AS report_date,
 
 --Fix accoun_id
@@ -218,9 +310,9 @@ END AS campaign_name,
 --Fix campaign_objective
 CASE 
     WHEN campaign_objective IS NULL THEN 'unknown'
-    WHEN TRIM(campaign_objective) = ' ' THEN 'n/a'
+    WHEN TRIM(campaign_objective) = ' ' THEN 'unknown'
     ELSE(LOWER(TRIM(CAST(campaign_objective AS VARCHAR(100)))))
-    END AS campaign_objective,
+    END AS campign_objective,
 
 --Fix adset_name
     COALESCE(LOWER(TRIM(CAST(NULLIF(adset_name, ' ' )AS VARCHAR (100)))), 'unknown')
@@ -239,7 +331,7 @@ CASE
 --Clicks    
     ABS(ISNULL(TRY_CAST(NULLIF(TRIM(clicks), ' ') AS INT) ,0)) AS clicks,
        
---Populate missing spend where possible by using spend × clicks    
+--Pupolate missing spend where possible by using spend × clicks    
        TRy_CAST(
     CASE
         WHEN
@@ -249,8 +341,6 @@ CASE
             ELSE TRY_CAST(spend_gbp AS DECIMAL (18,2))
             END AS DECIMAL(18,2)) as spend_gbp ,
 
---Clicks
-      ABS(ISNULL(TRY_CAST(NULLIF(TRIM(clicks), ' ') AS DECIMAL(18,2)) ,0)) AS clicks,
 --Cpc 
       ABS(ISNULL(TRY_CAST(NULLIF(TRIM(cpc_gbp), ' ') AS DECIMAL(18,2)),0)) AS cpc_gbp,
 --Conversion value
@@ -266,15 +356,52 @@ CASE
                         CHAR(13), ''),  
                         CHAR(160), '')),''), 'gbp') AS CHAR(4))) AS currency
 
-FROM bronze.meta_ads
-WHERE report_date is not null
+--Left out calculated and agregated data as they are based on squwed numbers we do aggregation in gold layer 
 
-/*===================================================================================================================================
-=====================================================================================================================================
-*/
---ORDERS
 
-SELECT
+FROM bronze.meta_ads;
+
+
+
+	SET @end_time = GETDATE ();
+		PRINT'>> Load Duration:'+ CAST (DATEDIFF( second, @start_time, @end_time) AS VARCHAR ) + 'seconds';
+		PRINT'>>--------------------------------------------------------------------------------------<<'
+
+	PRINT '----------------------------------------------------------------------------------';
+	PRINT ' LOADING  TABLES ;
+	PRINT '----------------------------------------------------------------------------------';
+
+	/*orders*/
+	SET @start_time = GETDATE();
+	PRINT '** Tuncating silver.orders';
+	TRUNCATE TABLE silver.orders;
+
+
+	INSERT INTO silver.orders(
+
+	order_id_clean ,
+	order_date,
+	order_status,
+	is_refund ,
+	customer_id ,
+	customer_email,
+	product_name,
+	product_sku,
+	quantity ,
+	unit_price_gbp,
+	discount_gbp,
+	subtotal_gbp,
+	shipping_gbp,
+	order_total_gbp,
+	attributed_channel,
+	attributed_campaign,
+	attributed_source ,
+	session_id,
+	payment_method,
+	is_new_customer,
+	coupon_code
+	)
+	SELECT
 --Order_id
 COALESCE(LOWER(TRIM(order_id)), 'unknown_id') AS order_id_clean,
 --Date
@@ -293,12 +420,12 @@ CASE
 WHEN 
 LOWER(TRIM(order_status)) = 'refunded' THEN 1 ELSE 0
 END AS is_refund,
---Standardised lowercase, trim, null is n/a
+--Standardized lowercase, trim, null is n/a
 COALESCE(LOWER(TRIM(customer_id)), 'unknown') AS customer_id,
 COALESCE(LOWER(TRIM(customer_email)), 'unknown') AS customer_email,
 COALESCE(LOWER(TRIM(product_name)), 'unknown') AS product_name,
 COALESCE(LOWER(TRIM(product_sku)), 'unknown') AS product_sku,
---numbers are positive and calculation-ready for the gold layer
+--numbers are positive and calculation ready for gold layer
   --Quantity
     ISNULL(ABS(TRY_CAST(TRIM(quantity) AS INT)), 0) AS quantity,
     -- UnitPrice
@@ -331,7 +458,7 @@ CAST(
 ) AS new_customer_flag,
 
 
---Fix the lot of hidden characters
+--Fix the loat of hidden characters
 LOWER(CAST(ISNULL(NULLIF(TRIM(
                     REPLACE(REPLACE(REPLACE(REPLACE(coupon_code,
                         CHAR(9), ''),   
@@ -339,20 +466,45 @@ LOWER(CAST(ISNULL(NULLIF(TRIM(
                         CHAR(13), ''),  
                         CHAR(160), '')),''), 'no coupon')AS VARCHAR(100))) AS coupon_code
 
-FROM bronze.orders
+--Left out calculated and agregated data as they are based on squwed numbers we do aggregation in gold layer 
 
 
 
-/*
-===============================================================================================================================
-==============================================================================================================================
-*/
 
-WEB ANALYTICS
-
---Fix session_id
+FROM bronze.orders;
 
 
+	SET @end_time = GETDATE ();
+		PRINT'>> Load Duration:'+ CAST (DATEDIFF( second, @start_time, @end_time) AS VARCHAR ) + 'seconds';
+		PRINT'>>--------------------------------------------------------------------------------------<<'
+
+
+
+	/* web_analytics*/
+	SET @start_time = GETDATE();
+	PRINT '** Tuncating Table silver.web_analytics';
+	TRUNCATE TABLE silver.web_analytics;
+
+	INSERT INTO silver.web_analytics(
+
+    session_id ,
+	session_date ,
+	channel_grouping ,
+	source ,
+	medium ,
+	campaign ,
+	landing_page ,
+	device_category ,
+	pageviews,
+	sessions ,
+	bounce ,
+	user_id ,
+	time_on_site_secs,
+	converted ,
+	order_value_gbp,
+	country ,
+	new_vs_returning )
+    
 SELECT 
 COALESCE(CAST(LOWER(TRIM(session_id)) AS VARCHAR(50)), 'unknown_id') AS sessions_id,
 
@@ -409,7 +561,7 @@ CASE
     ELSE LOWER(TRIM(landing_page)) 
     END AS landing_page,
 
---Device category had hidden characters, hence the complex replace query 
+--Device category it had hidden characters hance the complex replace query 
 
 CASE WHEN LOWER(LTRIM(RTRIM(device_category))) = ' ' THEN 'unknown'
      WHEN NULLIF(TRIM(
@@ -421,7 +573,7 @@ CASE WHEN LOWER(LTRIM(RTRIM(device_category))) = ' ' THEN 'unknown'
     ELSE LOWER(TRIM(device_category)) 
     END AS device_category,
 
---Pageviews turning negative into positive negative pageview is a system error in this case, since we have no access to the source controller
+--Pageviews turning negative into positive negative pagview is a system error in this case since we have no access to the source controller
 
     CAST(ABS(ISNULL(NULLIF(TRIM(pageviews), ' '), 0 )) AS INT) AS pageviews,
 
@@ -452,16 +604,6 @@ CASE WHEN LOWER(LTRIM(RTRIM(device_category))) = ' ' THEN 'unknown'
     AS DECIMAL(18,2))), 0) AS order_value_gbp, 
   
 
---User id
-LOWER(CAST(ISNULL(NULLIF(TRIM(
-                    REPLACE(REPLACE(REPLACE(REPLACE(new_vs_returning,
-                        CHAR(9), ''),   
-                        CHAR(10), ''), 
-                        CHAR(13), ''),  
-                        CHAR(160), '')),''), 'unknown')AS VARCHAR(50))) AS new_vs_returning,
-
-
-
 --Fix country codes in to country names 
 
 CASE WHEN RTRIM(LTRIM(country)) = 'US' THEN 'United States'
@@ -477,16 +619,41 @@ CASE WHEN RTRIM(LTRIM(country)) = 'US' THEN 'United States'
     ELSE  LTRIM(RTRIM(country))
 END AS country,
 
---New_vs_returning had empty and null cells, hence the complex replace query to make sure only consistent data passes into gold 
+--New_vs_returning had empty and null cells hence the complex replace query to make sure only consistent data passes into gold 
 
 LOWER(CAST(ISNULL(NULLIF(TRIM(
                     REPLACE(REPLACE(REPLACE(REPLACE(new_vs_returning,
                         CHAR(9), ''),   
                         CHAR(10), ''), 
                         CHAR(13), ''),  
-                        CHAR(160), '')),''), 'unknown')AS VARCHAR(50))) AS new_vs_returning
+                        CHAR(160), '')),''), 'unknown')AS VARCHAR(50))) As new_vs_returning
+
+--Left out calculated and agregated data as they are based on skewed numbers we do aggregation in gold layer 
+
 
 FROM 
-bronze.web_analytics
+bronze.web_analytics;
+
+	
+	
+	SET @end_time = GETDATE ();
+		PRINT'>> Load Duration:'+ CAST (DATEDIFF( second, @start_time, @end_time) AS VARCHAR ) + 'seconds';
+		PRINT'>>--------------------------------------------------------------------------------------<<'
+
+        PRINT 'Loading Silver Layer is Completed';
+		PRINT '- Total Duration: '+ CAST(DATEDIFF( second, @start_time, @end_time) AS VARCHAR ) + 'seconds';
+		PRINT '========================================================================================================';
+	
+	END TRY
+
+	BEGIN CATCH 
+PRINT '==========================================================';
+PRINT 'ERROR OCCURRED DURING LOADING BRONZE LAYER ';
+PRINT'Error Message' + CAST( ERROR_MESSAGE() AS NVARCHAR);
+PRINT'Error Message' + CAST (ERROR_NUMBER() AS NVARCHAR);
+PRINT '==========================================================';
+END CATCH
+
+END
 
 
