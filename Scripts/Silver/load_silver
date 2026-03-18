@@ -504,7 +504,11 @@ FROM bronze.orders;
 	order_value_gbp,
 	country ,
 	new_vs_returning )
-    
+ 
+
+--Fix session_id
+
+
 SELECT 
 COALESCE(CAST(LOWER(TRIM(session_id)) AS VARCHAR(50)), 'unknown_id') AS sessions_id,
 
@@ -607,8 +611,8 @@ CASE WHEN LOWER(LTRIM(RTRIM(device_category))) = ' ' THEN 'unknown'
 --Fix country codes in to country names 
 
 CASE WHEN RTRIM(LTRIM(country)) = 'US' THEN 'United States'
-     WHEN RTRIM(LTRIM(country)) = 'UK' THEN 'United Kingdom'
-     WHEN RTRIM(LTRIM(country)) = 'GB' THEN 'United Kingdom'
+     WHEN RTRIM(LTRIM(country)) IN ('UK','GB' ) THEN 'United Kingdom'
+    
      WHEN RTRIM(LTRIM(country)) = 'AUS' THEN 'Australia'
      WHEN NULLIF(TRIM(
                     REPLACE(REPLACE(REPLACE(REPLACE(country,
@@ -632,7 +636,7 @@ LOWER(CAST(ISNULL(NULLIF(TRIM(
 
 
 FROM 
-bronze.web_analytics;
+bronze.web_analytics;   
 
 	
 	
