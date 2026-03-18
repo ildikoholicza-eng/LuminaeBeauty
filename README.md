@@ -21,7 +21,7 @@
 
 #### Indempotent Scripts: All SQL scripts use IF NOT EXISTS and DROP TABLE IF EXISTS logic. This ensures the environment can be reset or redeployed safely without causing  system errors or accidental data loss.
 #### Defensive Schema Design: Schemas are created dynamically using EXEC to bypass batch requirements, demonstrating advanced T-SQL scripting.
-#### Future-Ready: The Gold Layer is designed specifically to connect to visualisation tools  like PowerBI or Tableau for executive reporting. 
+#### Future-Ready: The Gold Layer is designed to integrate with visualisation tools such as Power BI or Tableau for executive reporting. 
 
 ### How to Use 
 #### 1,  Clone the repo: Download the SQL scripts and CSV files.
@@ -33,6 +33,7 @@
 
 
 ##### Roadmap: Database Schema Design -> Bronze Ingestion Script -> Silver Layer Data Cleaning -> Gold Layer Aggregations -> Dashboard Integration 
+##### Small note here, I handled NULL values by imputing 'unknown1 or 0 due to lack of control over source data. My project aims to trace the data through the pipeline and demonstrate calculations using simple business logic. There is a difference between missing data and actual null values. I also left some aggregated columns in the bronze layer as calculations were based on skewed numbers. I decided every calculation should happen in the gold layer with clean data.
 
 ###### Feel free to use the scripts and dataset
 
