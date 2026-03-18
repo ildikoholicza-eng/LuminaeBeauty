@@ -1,1 +1,16 @@
+-- Check if my query worked, it creates a temporary table to verify if the query did what I intended to do without using the full dataset.
+WITH preview as 
+( SELECT      CAST(ABS(ISNULL(NULLIF(sessions, ' '),0 )) AS INT) AS sessions
+
+FROM bronze.web_analytics)
+select * from preview 
+
+WHERE sessions < 0 or sessions is null
+
+
+select distinct converted 
+from bronze.web_analytics
+--Order value
+      CAST(ABS(ISNULL(NULLIF(TRIM(order_value_gbp), ' '), 0)) AS DECIMAL(18,2)) AS order_value_gbp
+      FRom bronze.web_analytics
 
