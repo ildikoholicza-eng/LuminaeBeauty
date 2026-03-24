@@ -31,8 +31,6 @@ DROP TABLE silver.email_analytics;
 
 
 --Create silver Google analytics
-
-
 IF OBJECT_ID ('silver.google_ppc', 'U') IS NOT NULL
 
 DROP TABLE silver.goggle_ppc;
@@ -48,12 +46,13 @@ DROP TABLE silver.goggle_ppc;
 	Clicks INT,
 	Cost_Gbp DECIMAL (18,2),
 	Conversions INT,
+	data_quality_flag VARCHAR (10),
 	Conv_Value_Gbp DECIMAL (18,2),
 	Quality_Score INT,
 	Currency_Code CHAR (4),
 	dwh_create_date DATETIME2 DEFAULT GETDATE()
 	);
-	
+
 
 --Create silver meata ads analytics
 
