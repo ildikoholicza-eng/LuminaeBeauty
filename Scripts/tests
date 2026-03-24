@@ -14,3 +14,238 @@ from bronze.web_analytics
       CAST(ABS(ISNULL(NULLIF(TRIM(order_value_gbp), ' '), 0)) AS DECIMAL(18,2)) AS order_value_gbp
       FRom bronze.web_analytics
 
+Select top 50 
+*
+FRom silver.email_analytics
+;
+
+--Check if date is valid after cleaning, also checks for invalid date formats or formats that cannot be converted into dates 
+Select 
+*
+FRom silver.email_analytics
+Where try_cast(send_date as date)is null
+And send_date is not null;
+
+-- Check for date range 
+Select 
+*
+from silver.email_analytics
+WHERE try_cast(send_date as Date) <'1900-01-01'
+or try_cast(send_date as date ) > getdate()
+
+SELECT 
+min( try_cast( send_date as date)) as earliest ,
+max( try_cast( send_date as date)) as latest
+From
+silver.email_analytics;
+
+SELECT*
+from silver.email_analytics
+where campaign_id is null;
+
+--check for empty strings 
+select 
+*
+from 
+silver.email_analytics
+where campaign_id = ' '
+
+Select distinct campaign_id 
+from silver.email_analytics
+Where campaign_id like 'unknown'
+
+-- Ckecks for distinct values 
+Select distinct list_segment
+from silver.email_analytics
+order by list_segment
+
+--check if values are numeric 
+SELECT 
+*
+FROM
+silver.email_analytics
+WHERE
+try_cast( total_sent as float) is null and total_sent is not null
+or try_cast (delivered as float) is null and delivered is not null
+or try_cast (bounced as float) is null and bounced is not null
+or try_cast (opened  as float) is null and opened  is not null
+or try_cast (clicked as float) is null and clicked is not null
+or try_cast (unsubscribed as float) is null and unsubscribed is not null
+or try_cast (conversions as float) is null and conversions is not null
+
+select
+revenue_gbp
+from silver.email_analytics
+where try_cast(revenue_gbp as decimal(18,2)) is null and revenue_gbp
+is not null
+
+--Check for negative values 
+select *
+from 
+silver.email_analytics 
+where 
+total_sent <0 
+or delivered <0
+or bounced <0 
+or opened <0
+or clicked <0
+or unsubscribed <0 
+or conversions <0
+or revenue_gbp <0 
+
+-- logical relationship check 
+SELECT 
+delivered,
+bounced,
+opened, 
+clicked,
+unsubscribed,
+conversions
+FROM
+silver.email_analytics
+where 
+delivered > total_sent
+or bounced> total_sent
+or opened > delivered
+or clicked > opened
+or conversions > clicked 
+
+Select *
+from silver.email_analytics
+where delivered = 0 
+and opened > 0 
+--check for revenue 
+Select *
+from silver.email_analytics
+where try_cast(revenue_gbp as decimal(18,2)) is null and revenue_gbp is not null
+
+-- Check google_ppc 
+SELECT *
+FROM silver.google_ppc
+
+--date check 
+select * from 
+silver.google_ppc
+Where try_cast(event_date as date)is null
+And event_date is not null;
+
+select * from 
+silver.google_ppc
+WHERE try_cast(event_date as Date) <'1900-01-01'
+or try_cast(event_date as date ) > getdate()
+
+
+
+SELECT 
+min( try_cast( event_date as date)) as earliest ,
+max( try_cast( event_date as date)) as latest
+From
+silver.google_ppc;
+
+--check customer_id
+SELECT *
+FROM silver.google_ppc
+WHERE customer_id IS NULL
+   OR TRIM(customer_id) = ''
+   OR LOWER(TRIM(customer_id)) = 'null';
+
+   Select distinct Match_type
+   from silver.google_ppc;
+
+  Select distinct Keyword
+   from silver.google_ppc;
+
+   SELECT *
+FROM silver.google_ppc
+WHERE Clicks > Impressions;
+
+--cost is impossible without clicks 
+
+SELECT *
+FROM silver.google_ppc
+WHERE clicks = 0 AND cost_gbp > 0;
+
+
+-- Check meta ads
+SELECT 
+*
+FROM
+silver.meta_ads
+
+--date check 
+select * from 
+silver.meta_ads
+Where try_cast(report_date as date)is null
+And report_date is not null;
+
+select * from 
+silver.meta_ads
+WHERE try_cast(report_date as Date) <'1900-01-01'
+or try_cast(report_date as date ) > getdate()
+
+
+
+SELECT 
+min( try_cast( report_date as date)) as earliest ,
+max( try_cast( report_date as date)) as latest
+From
+silver.meta_ads
+
+--check for empty strings
+select 
+*
+from 
+silver.meta_ads
+where account_id = ' '
+
+Select distinct account_id 
+from silver.meta_ads
+Where account_id like 'unknown'
+
+SELECT
+DISTINCT placement
+from silver.meta_ads
+
+campaign_objective, adset_name, ad_name, placement
+
+SELECT *
+FROM silver.meta_ads
+WHERE 
+    impressions < 0
+    OR reach < 0
+    OR clicks < 0
+    OR spend_gbp < 0
+    OR cpc_gbp < 0
+    OR conversion_value_gbp < 0;
+
+
+-- clicks cannot exceed impressions
+SELECT *
+FROM silver.meta_ads
+WHERE clicks > impressions;
+
+
+select 
+*from 
+silver.orders
+
+
+Select *
+from 
+silver.web_analytics
+
+Select
+converted,
+order_value_gbp
+from silver.web_analytics
+where converted = 0 and order_value_gbp > 0
+
+
+--every session has at least one pageviews
+select
+*
+from silver.web_analytics
+where
+pageviews < sessions
+or bounce> sessions
+or converted> sessions;
