@@ -46,7 +46,7 @@ DROP TABLE silver.goggle_ppc;
 	Clicks INT,
 	Cost_Gbp DECIMAL (18,2),
 	Conversions INT,
-	data_quality_flag VARCHAR (10),
+	data_quality_flag INT,
 	Conv_Value_Gbp DECIMAL (18,2),
 	Quality_Score INT,
 	Currency_Code CHAR (4),
