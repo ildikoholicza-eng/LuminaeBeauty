@@ -49,10 +49,10 @@ CREATE   PROCEDURE [silver].[load_silver] AS BEGIN
 	PRINT '----------------------------------------------------------------------------------';
 	  SET @start_time = GETDATE();
 	   PRINT '** Tuncating Table silver.email_analytics';
-	TRUNCATE TABLE silver.email_analytics;
+TRUNCATE TABLE silver.email_analytics;
 
-		INSERT INTO silver.email_analytics (
-		send_date, 
+INSERT INTO silver.email_analytics (
+	send_date, 
 	campaign_id,
 	campaign_name ,
 	email_type ,
@@ -63,8 +63,7 @@ CREATE   PROCEDURE [silver].[load_silver] AS BEGIN
 	opened ,
 	clicked ,
 	unsubscribed ,
-    data_quality_flag 
-	conversions ,
+	conversions,
 	revenue_gbp ,
 	esp_platform ,
 	list_segment )
@@ -105,14 +104,14 @@ END AS email_type,
 
 --Subject line
 
-    LOWER(ISNULL(NULLIF(NULLIF(TRIM(subject_line),' '),'NULL'),
+        LOWER(ISNULL(NULLIF(NULLIF(TRIM(subject_line),' '),'NULL'),
         'unknown'
     )
 ) AS subject_line,
 
 --Cleaned numbers 
 
-    ISNULL(
+        ISNULL(
         ABS(TRY_CAST(TRIM(total_sent) AS INT)),
         ABS(ISNULL(TRY_CAST(TRIM(delivered) AS INT),0)) +
         ABS(ISNULL(TRY_CAST(TRIM(bounced) AS INT),0))
@@ -123,18 +122,20 @@ CASE WHEN
         THEN opened + bounced 
         ELSE ABS(ISNULL(TRY_CAST(TRIM(delivered) AS INT),0))
         END AS delivered,
+
         ABS(ISNULL(TRY_CAST(TRIM(bounced) AS INT),0)) AS bounced,
         ABS(ISNULL(TRY_CAST(TRIM(opened) AS INT),0)) AS opened,
         ABS(ISNULL(TRY_CAST(TRIM(clicked) AS INT),0)) AS clicked,
         ABS(ISNULL(TRY_CAST(TRIM(unsubscribed) AS INT),0)) AS unsubscribed,
+
         ABS(ISNULL(TRY_CAST(TRIM(conversions) AS INT),0)) AS conversions,
 --Revenue
 
-    ISNULL(TRY_CAST(TRIM(revenue_gbp) AS DECIMAL(18,2)),0) AS revenue_gbp,
+        ISNULL(TRY_CAST(TRIM(revenue_gbp) AS DECIMAL(18,2)),0) AS revenue_gbp,
 
 --Platform segment
 
-    ISNULL(LOWER(TRIM(esp_platform)), 'unknown') AS esp_platform,
+        ISNULL(LOWER(TRIM(esp_platform)), 'unknown') AS esp_platform,
 
 --List segment
 
@@ -149,7 +150,7 @@ CASE
     ELSE LOWER(LTRIM(RTRIM(list_segment)))
 END AS list_segment
 
---Left out calculated and agregated data as they are based on squwed numbers we do aggregation in gold layer 
+--Left out calculated and agregated data as they are based on skewed numbers we do aggregation in gold layer 
 
 FROM bronze.email_analytics;
 
@@ -161,11 +162,11 @@ FROM bronze.email_analytics;
 	SET @start_time = GETDATE();
 	PRINT '** Tuncating Table silver.google_ppc';
 	
-	TRUNCATE TABLE silver.google_ppc ;
+TRUNCATE TABLE silver.google_ppc ;
 
 
-	INSERT INTO silver.google_ppc(
-		event_date,
+INSERT INTO silver.google_ppc(
+	event_date,
 	customer_id,
 	campaign ,
 	Network ,
@@ -183,99 +184,102 @@ FROM bronze.email_analytics;
 	)
 
 	SELECT
-COALESCE(
+    COALESCE(
     TRY_CONVERT(date, NULLIF(TRIM(date), ''), 23),
     TRY_CONVERT(date, NULLIF(TRIM(date), ''), 103),
     TRY_CONVERT(date, NULLIF(TRIM(date), ''), 110),
     TRY_CONVERT(date, NULLIF(TRIM(date), ''), 106),
     '1900-01-01'
-) AS event_date,
+    ) AS event_date,
 
 --Customer id
 
 
-  COALESCE(LOWER(TRIM(CAST(customer_id AS VARCHAR (50)))),'unknown') AS customer_id,
+    COALESCE(LOWER(TRIM(CAST(customer_id AS VARCHAR (50)))),'unknown') AS customer_id,
 
 
-CASE 
-        WHEN Campaign IS NULL OR LEN(LTRIM(RTRIM(Campaign))) = 0 THEN 'unattributed'
-        WHEN(RTRIM(LTRIM(Campaign))) ='null' THEN 'unattributed'
+    CASE 
+        WHEN Campaign IS NULL OR LEN(LTRIM(RTRIM(Campaign))) = 0 THEN 'unknown'
+        WHEN(RTRIM(LTRIM(Campaign))) ='null' THEN 'unknown'
         WHEN(RTRIM(LTRIM(Campaign))) = 'DSA_AllProducts' THEN 'dsa_all_products'
         WHEN(RTRIM(LTRIM(Campaign))) = 'RLSA_CartAbandoners' THEN 'rlsa_cart_abandoners'
         ELSE LOWER(LTRIM(RTRIM(campaign)))
     END AS campaign,
    
 
- CASE 
+    CASE 
+        WHEN Campaign LIKE '%dsa%' OR Campaign LIKE '%rlsa%' 
+        THEN 'search'
+        WHEN Network is null or 
+        TRIM(Network) = ' 'THEN 'unknown'
+        ELSE LOWER(TRIM(Network))
+        END AS Network,
 
-    WHEN Campaign LIKE '%dsa%' OR Campaign LIKE '%rlsa%' 
-    THEN 'search'
-    WHEN Network is null or 
-    TRIM(Network) = ' 'THEN 'unknown'
-    ELSE LOWER(TRIM(Network))
-END AS Network,
-CASE 
-    WHEN Match_Type IS NULL OR TRIM(Match_Type) = ' ' OR 
-    TRIM(Match_Type) = 'null' THEN 'unknown' 
-    ELSE 
-    LOWER(TRIM(Match_Type))
-    END AS Match_Type,
-CASE 
-    WHEN Keyword IS NULL OR TRIM(Keyword) = ' '  OR 
-    TRIM(Keyword) = 'null' 
-    THEN 'unknown'
-    ELSE LOWER(TRIM(Keyword)) 
-    END AS Keyword,
-CASE 
-    WHEN TRY_CAST(Impressions AS INT) >0 THEN TRY_CAST(Impressions AS INT)
-    WHEN TRY_CAST(Clicks AS INT) >0 THEN TRY_CAST(Clicks AS INT)
-    ELSE 0
-    END AS Impressions,
+    CASE 
+        WHEN Match_Type IS NULL OR TRIM(Match_Type) = ' ' OR 
+        TRIM(Match_Type) = 'null' THEN 'unknown' 
+        ELSE 
+        LOWER(TRIM(Match_Type))
+        END AS Match_Type,
+
+    CASE 
+        WHEN Keyword IS NULL OR TRIM(Keyword) = ' '  OR 
+        TRIM(Keyword) = 'null' 
+        THEN 'unknown'
+        ELSE LOWER(TRIM(Keyword)) 
+        END AS Keyword,
+
+    CASE 
+        WHEN TRY_CAST(Impressions AS INT) >0 THEN TRY_CAST(Impressions AS INT)
+        WHEN TRY_CAST(Clicks AS INT) >0 THEN TRY_CAST(Clicks AS INT)
+        ELSE 0
+        END AS Impressions,
     ISNULL 
-    (CASE 
-        WHEN TRY_CAST(Clicks AS INT) <0  THEN 0 
-        ELSE TRY_CAST(Clicks AS INT)
-        END, 0 )AS Clicks,
-   ISNULL
-   (CASE WHEN TRY_CAST(trim(Cost_Gbp) AS DECIMAL(18,2)) <0 THEN 0
-   ELSE TRY_CAST(TRIM(Cost_Gbp) AS DECIMAL (18,2))
-   END, 0.00 )AS Cost_Gbp,
+        (CASE 
+            WHEN TRY_CAST(Clicks AS INT) <0  THEN 0 
+            ELSE TRY_CAST(Clicks AS INT)
+            END, 0 )AS Clicks,
+    ISNULL
+       (CASE WHEN TRY_CAST(trim(Cost_Gbp) AS DECIMAL(18,2)) <0 THEN 0
+       ELSE TRY_CAST(TRIM(Cost_Gbp) AS DECIMAL (18,2))
+       END, 0.00 )AS Cost_Gbp,
 
-ISNULL(
-    CASE
-        WHEN TRY_CAST(NULLIF(TRIM(Conversions), '') AS INT) < 0 THEN 0
-        ELSE TRY_CAST(NULLIF(TRIM(Conversions), '') AS INT)
-    END,
-0) AS Conversions,
-CASE 
-    WHEN Impressions < 0 OR Clicks < 0 THEN 0
-    WHEN Clicks > Impressions THEN 0
-    WHEN Impressions = 0 AND Clicks > 0 THEN 0
-    WHEN impressions = 0 AND clicks = 0 AND Cost_Gbp > 0 THEN 0
-    ELSE 1
-END AS is_valid_row,
+    ISNULL(
+        CASE
+            WHEN TRY_CAST(NULLIF(TRIM(Conversions), '') AS INT) < 0 THEN 0
+            ELSE TRY_CAST(NULLIF(TRIM(Conversions), '') AS INT)
+        END,
+    0) AS Conversions,
 
-ISNULL(
-CASE WHEN TRY_CAST(TRIM(Conv_Value_GBP) AS DECIMAL (18,2)) < 0 then 0 
-ELSE 
-TRY_CAST(TRIM(Conv_Value_GBP) AS DECIMAL(18,2))
-END, 0.00 ) AS Conv_Value_GBP,
+    CASE 
+        WHEN Impressions < 0 OR Clicks < 0 THEN 0
+        WHEN Clicks > Impressions THEN 0
+        WHEN Impressions = 0 AND Clicks > 0 THEN 0
+        WHEN impressions = 0 AND clicks = 0 AND Cost_Gbp > 0 THEN 0
+        ELSE 1
+    END AS is_valid,
 
-ISNULL
-(TRY_CAST(NULLIF(TRIM(Quality_Score), 'unknown') AS INT), 0)
-AS Quality_Score, 
+    ISNULL(
+    CASE WHEN TRY_CAST(TRIM(Conv_Value_GBP) AS DECIMAL (18,2)) < 0 then 0 
+    ELSE 
+    TRY_CAST(TRIM(Conv_Value_GBP) AS DECIMAL(18,2))
+    END, 0.00 ) AS Conv_Value_GBP,
 
-LOWER(CAST(ISNULL( NULLIF(TRIM(
-                    REPLACE(REPLACE(REPLACE(REPLACE(Currency_Code,
-                        CHAR(9), ''),   
-                        CHAR(10), ''), 
-                        CHAR(13), ''),  
-                        CHAR(160), '')),''), 'gbp') AS CHAR(4))) AS Currency_Code
+    ISNULL
+    (TRY_CAST(NULLIF(TRIM(Quality_Score), 'unknown') AS INT), 0)
+    AS Quality_Score, 
+
+    LOWER(CAST(ISNULL( NULLIF(TRIM(
+                        REPLACE(REPLACE(REPLACE(REPLACE(Currency_Code,
+                            CHAR(9), ''),   
+                            CHAR(10), ''), 
+                            CHAR(13), ''),  
+                            CHAR(160), '')),''), 'gbp') AS CHAR(4))) AS Currency_Code
 
 --Left out calculated and agregated data as they are based on squwed numbers we do aggregation in gold layer 
 
 
-FRom bronze.google_ppc
+    FROM bronze.google_ppc
 
 
 	   SET @end_time = GETDATE();
@@ -287,10 +291,10 @@ FRom bronze.google_ppc
 	   /*.meata_ads*/
 	   SET @start_time = GETDATE();
 	   PRINT '** Tuncating Table silver.meta_ads';
-	TRUNCATE TABLE silver.meta_ads;
+TRUNCATE TABLE silver.meta_ads;
 
 
-	   INSERT INTO silver.meta_ads(
+INSERT INTO silver.meta_ads(
 	report_date,
 	account_id ,
 	account_name,
@@ -311,426 +315,426 @@ FRom bronze.google_ppc
 	
 )
 
-SELECT
-COALESCE(
-    TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 23),
-    TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 103),
-    TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 110),
-    TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 106),
-    '1900-01-01'
-) AS report_date,
+    SELECT
+    COALESCE(
+        TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 23),
+        TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 103),
+        TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 110),
+        TRY_CONVERT(date, NULLIF(TRIM(report_date), ''), 106),
+        '1900-01-01'
+    ) AS report_date,
 
---Fix accoun_id
+    --Fix accoun_id
 
-CASE 
-  WHEN TRIM(CAST(account_id AS VARCHAR(50))) = 'act-3527441' 
-        THEN 'Luminae Beauty'
+    CASE 
+      WHEN TRIM(CAST(account_id AS VARCHAR(50))) = 'act-3527441' 
+      THEN 'Luminae Beauty'
   
     
-    ELSE 
-        ISNULL(NULLIF(TRIM(CAST(account_id AS VARCHAR(50))), ''), 'unknown')
-END AS account_id,
---Fix account_name
-CAST(TRIM(
-CASE 
-WHEN account_name = 'act3527441'
-OR account_name LIKE 'Lumin%'THEN 'Luminea Beauty LTD'
-ELSE ISNULL(account_name, 'Luminea Beauty LTD')
-END ) AS VARCHAR (50) 
-)AS account_name
-,
+      ELSE 
+            ISNULL(NULLIF(TRIM(CAST(account_id AS VARCHAR(50))), ''), 'unknown')
+      END AS account_id,
+    --Fix account_name
+    CAST(TRIM(
+    CASE 
+        WHEN account_name = 'act3527441' OR account_name LIKE 'Lumin%'THEN 'Luminea Beauty LTD'
+        ELSE ISNULL(account_name, 'Luminea Beauty LTD')
+        END ) AS VARCHAR (50) 
+        )AS account_name,
 
---Fix campaign_name
-CASE 
-    WHEN campaign_name IS NULL THEN 'unknown'
-    WHEN TRIM(campaign_name) = '' THEN 'unknown'
-    WHEN LOWER(TRIM(campaign_name)) LIKE '%null%' THEN 'unknown'
-    ELSE LOWER(TRIM(CAST(campaign_name AS VARCHAR(100))))
-END AS campaign_name,
+    --Fix campaign_name
+    CASE 
+        WHEN campaign_name IS NULL THEN 'unknown'
+        WHEN TRIM(campaign_name) = '' THEN 'unknown'
+        WHEN LOWER(TRIM(campaign_name)) LIKE '%null%' THEN 'unknown'
+        ELSE LOWER(TRIM(CAST(campaign_name AS VARCHAR(100))))
+    END AS campaign_name,
 
---Fix campaign_objective
-CASE 
-    WHEN campaign_objective IS NULL THEN 'unknown'
-    WHEN TRIM(campaign_objective) = ' ' THEN 'unknown'
-    ELSE(LOWER(TRIM(CAST(campaign_objective AS VARCHAR(100)))))
-    END AS campign_objective,
+    --Fix campaign_objective
+    CASE 
+        WHEN campaign_objective IS NULL THEN 'unknown'
+        WHEN TRIM(campaign_objective) = ' ' THEN 'unknown'
+        ELSE(LOWER(TRIM(CAST(campaign_objective AS VARCHAR(100)))))
+        END AS campign_objective,
 
---Fix adset_name
-    COALESCE(LOWER(TRIM(CAST(NULLIF(adset_name, ' ' )AS VARCHAR (100)))), 'unknown')
-    AS adset_name,
---Fix ad_name
-    COALESCE(LOWER(TRIM(CAST(NULLIF(ad_name, ' ' )AS VARCHAR (100)))), 'unknown')
-    AS ad_name,
---Fix placement
-    COALESCE(LOWER(TRIM(CAST(NULLIF(placement, ' ' )AS VARCHAR (100)))), 'unknown')
-    AS placement,
+    --Fix adset_name
+        COALESCE(LOWER(TRIM(CAST(NULLIF(adset_name, ' ' )AS VARCHAR (100)))), 'unknown')
+        AS adset_name,
+    --Fix ad_name
+        COALESCE(LOWER(TRIM(CAST(NULLIF(ad_name, ' ' )AS VARCHAR (100)))), 'unknown')
+        AS ad_name,
+    --Fix placement
+        COALESCE(LOWER(TRIM(CAST(NULLIF(placement, ' ' )AS VARCHAR (100)))), 'unknown')
+        AS placement,
     
---Impressions
-    ABS(ISNULL(TRY_CAST(NULLIF(TRIM(impressions), ' ') AS INT), 0)) AS impressions,
---Flag invalid impressions
-   CASE 
-    WHEN impressions < 0 OR clicks < 0 THEN 0
-    WHEN clicks > impressions THEN 0
-    WHEN impressions = 0 AND clicks > 0 THEN 0
-    WHEN impressions = 0 AND clicks = 0 AND spend_gbp > 0 THEN 0
-    ELSE 1
-END AS is_valid_impression,
+    --Impressions
+        ABS(ISNULL(TRY_CAST(NULLIF(TRIM(impressions), ' ') AS INT), 0)) AS impressions,
+    --Flag invalid impressions
+     CASE 
+        WHEN impressions < 0 OR clicks < 0 THEN 0
+        WHEN clicks > impressions THEN 0
+        WHEN impressions = 0 AND clicks > 0 THEN 0
+        WHEN impressions = 0 AND clicks = 0 AND spend_gbp > 0 THEN 0
+        ELSE 1
+    END AS is_valid,
 
 
---Reach    
-    ABS(ISNULL(TRY_CAST(NULLIF(TRIM(reach), ' ') AS INT) ,0)) AS reach,
---Clicks    
-    ABS(ISNULL(TRY_CAST(NULLIF(TRIM(clicks), ' ')AS INT), 0)) AS clicks,
+    --Reach    
+        ABS(ISNULL(TRY_CAST(NULLIF(TRIM(reach), ' ') AS INT) ,0)) AS reach,
+    --Clicks    
+        ABS(ISNULL(TRY_CAST(NULLIF(TRIM(clicks), ' ')AS INT), 0)) AS clicks,
     
       
---Pupolate missing spend where possible by using spend × clicks    
-       TRy_CAST(
-    CASE
-        WHEN
-            TRY_CAST(NULLIF(TRIM(spend_gbp), ' ') AS DECIMAL (18,2)) IS NULL 
-            THEN
-            (clicks *ISNULL(TRY_CAST(cpc_gbp AS DECIMAL(18,2)),0))
-            ELSE TRY_CAST(spend_gbp AS DECIMAL (18,2))
-            END AS DECIMAL(18,2)) as spend_gbp ,
-  -- Cost per click 
-CASE 
-    WHEN TRY_CAST(NULLIF(TRIM(cpc_gbp), ' ') AS DECIMAL(18,2)) IS NOT NULL 
-    THEN ABS(TRY_CAST(NULLIF(TRIM(cpc_gbp), ' ') AS DECIMAL(18,2)))
-     ELSE 0
-      END AS cpc_gbp,
+    --Pupolate missing spend where possible by using spend × clicks    
+           TRY_CAST(
+     CASE
+         WHEN
+           TRY_CAST(NULLIF(TRIM(spend_gbp), ' ') AS DECIMAL (18,2)) IS NULL 
+                THEN
+                (clicks *ISNULL(TRY_CAST(cpc_gbp AS DECIMAL(18,2)),0))
+                ELSE TRY_CAST(spend_gbp AS DECIMAL (18,2))
+     END AS DECIMAL(18,2)) as spend_gbp ,
+
+      -- Cost per click 
+    CASE 
+        WHEN TRY_CAST(NULLIF(TRIM(cpc_gbp), ' ') AS DECIMAL(18,2)) IS NOT NULL 
+        THEN ABS(TRY_CAST(NULLIF(TRIM(cpc_gbp), ' ') AS DECIMAL(18,2)))
+        ELSE 0
+     END AS cpc_gbp,
 
 
- --Conversion value
-      ABS(COALESCE(TRY_CAST(REPLACE(REPLACE(TRIM(conversion_value_gbp), '%',' '), '$',' ') AS DECIMAL(18,2)),0))
-          AS conersion_value_gbp,
---Fequency
-        ABS(ISNULL(TRY_CAST(NULLIF(TRIM(frequency), ' ') AS DECIMAL(18,2)),0)) AS frequency,
---Currency
+     --Conversion value
+            ABS(COALESCE(TRY_CAST(REPLACE(REPLACE(TRIM(conversion_value_gbp), '%',' '), '$',' ') AS DECIMAL(18,2)),0))
+              AS conersion_value_gbp,
+    --Fequency
+            ABS(ISNULL(TRY_CAST(NULLIF(TRIM(frequency), ' ') AS DECIMAL(18,2)),0)) AS frequency,
+    --Currency
             LOWER(CAST(ISNULL( NULLIF(TRIM(
-                    REPLACE(REPLACE(REPLACE(REPLACE(currency,
-                        CHAR(9), ''),   
-                        CHAR(10), ''), 
-                        CHAR(13), ''),  
-                        CHAR(160), '')),''), 'gbp') AS CHAR(4))) AS currency
+                        REPLACE(REPLACE(REPLACE(REPLACE(currency,
+                            CHAR(9), ''),   
+                            CHAR(10), ''), 
+                            CHAR(13), ''),  
+                            CHAR(160), '')),''), 'gbp') AS CHAR(4))) AS currency
 
---Left out calculated and agregated data as they are based on squwed numbers we do aggregation in gold layer 
-
-
-FROM bronze.meta_ads;
+    --Left out calculated and agregated data as they are based on squwed numbers we do aggregation in gold layer 
 
 
+    FROM bronze.meta_ads;
 
-	SET @end_time = GETDATE ();
-		PRINT'>> Load Duration:'+ CAST (DATEDIFF( second, @start_time, @end_time) AS VARCHAR ) + 'seconds';
-		PRINT'>>--------------------------------------------------------------------------------------<<'
 
-	PRINT '----------------------------------------------------------------------------------';
-	PRINT ' LOADING  TABLES ;
-	PRINT '----------------------------------------------------------------------------------';
 
-	/*orders*/
-	SET @start_time = GETDATE();
-	PRINT '** Tuncating silver.orders';
-    TRUNCATE TABLE silver.orders;
+	    SET @end_time = GETDATE ();
+		    PRINT'>> Load Duration:'+ CAST (DATEDIFF( second, @start_time, @end_time) AS VARCHAR ) + 'seconds';
+		    PRINT'>>--------------------------------------------------------------------------------------<<'
 
-INSERT INTO silver.orders(
-    order_id_clean,
-    order_date,
-    order_status,
-    is_refund,
-    customer_id,
-    customer_email,
-    product_name,
-    product_sku,
-    quantity,
-    unit_price_gbp,
-    discount_gbp,
-    subtotal_gbp,
-    shipping_gbp,
-    order_total_gbp,
-    is_valid_transaction,
-    attributed_channel,
-    attributed_campaign,
-    attributed_source,
-    session_id,
-    payment_method,
-    is_new_customer,
-    coupon_code
-)
-SELECT
-    -- Order_id
-    COALESCE(LOWER(TRIM(order_id)), 'unknown_id') AS order_id_clean,
+	    PRINT '----------------------------------------------------------------------------------';
+	    PRINT ' LOADING  TABLES ;
+	    PRINT '----------------------------------------------------------------------------------';
 
-    -- Date
-    COALESCE(
-        TRY_CONVERT(date, NULLIF(TRIM(order_date), ''), 23),
-        TRY_CONVERT(date, NULLIF(TRIM(order_date), ''), 103),
-        TRY_CONVERT(date, NULLIF(TRIM(order_date), ''), 110),
-        TRY_CONVERT(date, NULLIF(TRIM(order_date), ''), 106),
-        '1900-01-01'
-    ) AS order_date,
+	    /*orders*/
+	    SET @start_time = GETDATE();
+	    PRINT '** Tuncating silver.orders';
+ TRUNCATE TABLE silver.orders;
 
-    -- Flag refund
-    COALESCE(LOWER(TRIM(order_status)), 'unknown') AS order_status,
-    CASE 
-        WHEN LOWER(TRIM(order_status)) = 'refunded' THEN 1 
-        ELSE 0 
-    END AS is_refund,
+ INSERT INTO silver.orders(
+        order_id_clean,
+        order_date,
+        order_status,
+        is_refund,
+        customer_id,
+        customer_email,
+        product_name,
+        product_sku,
+        quantity,
+        unit_price_gbp,
+        discount_gbp,
+        subtotal_gbp,
+        shipping_gbp,
+        order_total_gbp,
+        is_valid_transaction,
+        attributed_channel,
+        attributed_campaign,
+        attributed_source,
+        session_id,
+        payment_method,
+        is_new_customer,
+        coupon_code
+    )
+    SELECT
+        -- Order_id
+        COALESCE(LOWER(TRIM(order_id)), 'unknown') AS order_id_clean,
 
-    -- Standardized lowercase, trim, null is n/a
-    COALESCE(LOWER(TRIM(customer_id)), 'unknown') AS customer_id,
-    COALESCE(LOWER(TRIM(customer_email)), 'unknown') AS customer_email,
-    COALESCE(LOWER(TRIM(product_name)), 'unknown') AS product_name,
-    COALESCE(LOWER(TRIM(product_sku)), 'unknown') AS product_sku,
+        -- Date
+        COALESCE(
+            TRY_CONVERT(date, NULLIF(TRIM(order_date), ''), 23),
+            TRY_CONVERT(date, NULLIF(TRIM(order_date), ''), 103),
+            TRY_CONVERT(date, NULLIF(TRIM(order_date), ''), 110),
+            TRY_CONVERT(date, NULLIF(TRIM(order_date), ''), 106),
+            '1900-01-01'
+        ) AS order_date,
 
-    -- Quantity: FIXED (Casting to Decimal first to handle '24.2')
-    ISNULL(CAST(ABS(TRY_CAST(TRIM(quantity) AS DECIMAL(18,2))) AS INT), 0) AS quantity,
-
-    -- UnitPrice
-    ISNULL(ABS(TRY_CAST(TRIM(unit_price_gbp) AS DECIMAL(18,2))), 0) AS unit_price_gbp,
-
-    -- Discount
-    ISNULL(ABS(TRY_CAST(TRIM(discount_gbp) AS DECIMAL(18,2))), 0) AS discount_gbp,
-
-    -- Subtotal
-    ISNULL(ABS(TRY_CAST(TRIM(subtotal_gbp) AS DECIMAL(18,2))), 0) AS subtotal_gbp,
-
-    -- Shipping
-    ISNULL(ABS(TRY_CAST(TRIM(shipping_gbp) AS DECIMAL(18,2))), 0) AS shipping_gbp,
-
-    -- Order total: FIXED (Removed spaces from TRANSLATE to avoid casting issues)
-    ISNULL(ABS(TRY_CAST(TRIM(TRANSLATE(order_total_gbp, '€$%£', '    ')) AS DECIMAL(18,2))), 0) AS order_total_gbp,
-
-    -- Transaction Validation
-    CASE 
-        WHEN (ISNULL(CAST(ABS(TRY_CAST(TRIM(quantity) AS DECIMAL(18,2))) AS INT), 0)) = 0 
-             AND ISNULL(ABS(TRY_CAST(TRIM(subtotal_gbp) AS DECIMAL(18,2))), 0) > 0 THEN 0
-        WHEN ISNULL(ABS(TRY_CAST(TRIM(unit_price_gbp) AS DECIMAL(18,2))), 0) = 0 
-             AND ISNULL(ABS(TRY_CAST(TRIM(subtotal_gbp) AS DECIMAL(18,2))), 0) > 0 THEN 0
-        ELSE 1
-    END AS is_valid_transaction,
-
-    COALESCE(LOWER(TRIM(attributed_channel)), 'unknown') AS attributed_channel,
-    COALESCE(LOWER(TRIM(attributed_campaign)), 'unknown') AS attributed_campaign,
-    COALESCE(LOWER(TRIM(attributed_source)), 'unknown') AS attributed_source,
-    COALESCE(LOWER(TRIM(session_id)), 'unknown') AS session_id,
-    COALESCE(LOWER(TRIM(payment_method)), 'unknown') AS payment_method,
-
-    CAST(
+        -- Flag refund
+        COALESCE(LOWER(TRIM(order_status)), 'unknown') AS order_status,
         CASE 
-            WHEN LOWER(RTRIM(LTRIM(CAST(is_new_customer AS VARCHAR(20))))) = 'true' THEN 1
-            WHEN RTRIM(LTRIM(CAST(is_new_customer AS VARCHAR(20)))) = '1' THEN 1
-            ELSE 0
-        END AS INT
-    ) AS new_customer_flag,
+            WHEN LOWER(TRIM(order_status)) = 'refunded' THEN 1 
+            ELSE 0 
+        END AS is_refund,
 
-    -- Coupon Code: Cleaning hidden characters
-    LOWER(CAST(ISNULL(NULLIF(TRIM(
-        REPLACE(REPLACE(REPLACE(REPLACE(coupon_code,
-            CHAR(9), ''),   
-            CHAR(10), ''), 
-            CHAR(13), ''),  
-            CHAR(160), '')
-    ), ''), 'no coupon') AS VARCHAR(100))) AS coupon_code
+        -- Standardized lowercase, trim, null is n/a
+        COALESCE(LOWER(TRIM(customer_id)), 'unknown') AS customer_id,
+        COALESCE(LOWER(TRIM(customer_email)), 'unknown') AS customer_email,
+        COALESCE(LOWER(TRIM(product_name)), 'unknown') AS product_name,
+        COALESCE(LOWER(TRIM(product_sku)), 'unknown') AS product_sku,
 
-FROM bronze.orders;
+        -- Quantity: FIXED (Casting to Decimal first to handle '24.2')
+        ISNULL(CAST(ABS(TRY_CAST(TRIM(quantity) AS DECIMAL(18,2))) AS INT), 0) AS quantity,
+
+        -- UnitPrice
+        ISNULL(ABS(TRY_CAST(TRIM(unit_price_gbp) AS DECIMAL(18,2))), 0) AS unit_price_gbp,
+
+        -- Discount
+        ISNULL(ABS(TRY_CAST(TRIM(discount_gbp) AS DECIMAL(18,2))), 0) AS discount_gbp,
+
+        -- Subtotal
+        ISNULL(ABS(TRY_CAST(TRIM(subtotal_gbp) AS DECIMAL(18,2))), 0) AS subtotal_gbp,
+
+        -- Shipping
+        ISNULL(ABS(TRY_CAST(TRIM(shipping_gbp) AS DECIMAL(18,2))), 0) AS shipping_gbp,
+
+        -- Order total: FIXED (Removed spaces from TRANSLATE to avoid casting issues)
+        ISNULL(ABS(TRY_CAST(TRIM(TRANSLATE(order_total_gbp, '€$%£', '    ')) AS DECIMAL(18,2))), 0) AS order_total_gbp,
+
+        -- Transaction Validation
+        CASE 
+            WHEN (ISNULL(CAST(ABS(TRY_CAST(TRIM(quantity) AS DECIMAL(18,2))) AS INT), 0)) = 0 
+                 AND ISNULL(ABS(TRY_CAST(TRIM(subtotal_gbp) AS DECIMAL(18,2))), 0) > 0 THEN 0
+            WHEN ISNULL(ABS(TRY_CAST(TRIM(unit_price_gbp) AS DECIMAL(18,2))), 0) = 0 
+                 AND ISNULL(ABS(TRY_CAST(TRIM(subtotal_gbp) AS DECIMAL(18,2))), 0) > 0 THEN 0
+            ELSE 1
+        END AS is_valid,
+
+        COALESCE(LOWER(TRIM(attributed_channel)), 'unknown') AS attributed_channel,
+        COALESCE(LOWER(TRIM(attributed_campaign)), 'unknown') AS attributed_campaign,
+        COALESCE(LOWER(TRIM(attributed_source)), 'unknown') AS attributed_source,
+        COALESCE(LOWER(TRIM(session_id)), 'unknown') AS session_id,
+        COALESCE(LOWER(TRIM(payment_method)), 'unknown') AS payment_method,
+
+        CAST(
+            CASE 
+                WHEN LOWER(RTRIM(LTRIM(CAST(is_new_customer AS VARCHAR(20))))) = 'true' THEN 1
+                WHEN RTRIM(LTRIM(CAST(is_new_customer AS VARCHAR(20)))) = '1' THEN 1
+                ELSE 0
+            END AS INT
+        ) AS new_customer_flag,
+
+        -- Coupon Code: Cleaning hidden characters
+             LOWER(CAST(ISNULL(NULLIF(TRIM(
+             REPLACE(REPLACE(REPLACE(REPLACE(coupon_code,
+                CHAR(9), ''),   
+                CHAR(10), ''), 
+                CHAR(13), ''),  
+                CHAR(160), '')
+        ), ''), 'no coupon') AS VARCHAR(100))) AS coupon_code
+
+    FROM bronze.orders;
 
 
 
 
-	SET @end_time = GETDATE ();
-		PRINT'>> Load Duration:'+ CAST (DATEDIFF( second, @start_time, @end_time) AS VARCHAR ) + 'seconds';
-		PRINT'>>--------------------------------------------------------------------------------------<<'
+	    SET @end_time = GETDATE ();
+		    PRINT'>> Load Duration:'+ CAST (DATEDIFF( second, @start_time, @end_time) AS VARCHAR ) + 'seconds';
+		    PRINT'>>--------------------------------------------------------------------------------------<<'
 
 
 
-	/* web_analytics*/
-	SET @start_time = GETDATE();
-	PRINT '** Tuncating Table silver.web_analytics';
-	TRUNCATE TABLE silver.web_analytics;
+	    /* web_analytics*/
+	    SET @start_time = GETDATE();
+	    PRINT '** Tuncating Table silver.web_analytics';
+	    TRUNCATE TABLE silver.web_analytics;
 
-	INSERT INTO silver.web_analytics(
+	    INSERT INTO silver.web_analytics(
 
-    session_id ,
-	session_date ,
-	channel_grouping ,
-	source ,
-	medium ,
-	campaign ,
-	landing_page ,
-	device_category ,
-	pageviews,
-	sessions ,
-	bounce ,
-	user_id ,
-	time_on_site_secs,
-	converted ,
-    is_valid_session,
-	order_value_gbp,
-	country ,
-	new_vs_returning )
+        session_id ,
+	    session_date ,
+	    channel_grouping ,
+	    source ,
+	    medium ,
+	    campaign ,
+	    landing_page ,
+	    device_category ,
+	    pageviews,
+	    sessions ,
+	    bounce ,
+	    user_id ,
+	    time_on_site_secs,
+	    converted ,
+        is_valid_session,
+	    order_value_gbp,
+	    country ,
+	    new_vs_returning )
     
-SELECT 
-COALESCE(CAST(LOWER(TRIM(session_id)) AS VARCHAR(50)), 'unknown_id') AS sessions_id,
+    SELECT 
+    COALESCE(CAST(LOWER(TRIM(session_id)) AS VARCHAR(50)), 'unknown') AS sessions_id,
 
 
---Fix session_date
+    --Fix session_date
 
-COALESCE(
-    TRY_CONVERT(date, NULLIF(TRIM(session_date), ''), 23),
-    TRY_CONVERT(date, NULLIF(TRIM(session_date), ''), 103),
-    TRY_CONVERT(date, NULLIF(TRIM(session_date), ''), 110),
-    TRY_CONVERT(date, NULLIF(TRIM(session_date), ''), 106),
-    '1900-01-01'
-) AS session_date
-,
---Fix channel_grouping
+    COALESCE(
+        TRY_CONVERT(date, NULLIF(TRIM(session_date), ''), 23),
+        TRY_CONVERT(date, NULLIF(TRIM(session_date), ''), 103),
+        TRY_CONVERT(date, NULLIF(TRIM(session_date), ''), 110),
+        TRY_CONVERT(date, NULLIF(TRIM(session_date), ''), 106),
+        '1900-01-01'
+    ) AS session_date
+    ,
+    --Fix channel_grouping
 
-CASE 
-    WHEN TRIM(LOWER(channel_grouping)) IS NULL THEN 'unknown'
-    WHEN TRIM(LOWER(channel_grouping)) = '' THEN 'unknown'
-    WHEN LOWER(TRIM(channel_grouping)) LIKE 'paid social' THEN 'paid_social'
-    ELSE LOWER(TRIM(channel_grouping ))
-END AS channel_grouping, 
-
---Fix traffic source
-
-COALESCE(LOWER(TRIM(source)), 'unknown') AS source,
-
---Fix traffic medium
-
-COALESCE(LOWER(TRIM(medium)), 'unknown') AS medium,
-
---Fix campaign names 
-
-CASE 
-        WHEN campaign IS NULL OR LEN(LTRIM(RTRIM(campaign))) = 0 THEN 'unatributed'
-        WHEN(RTRIM(LTRIM(campaign))) ='null' THEN 'unatributed'
-        WHEN(RTRIM(LTRIM(campaign))) = 'DSA_AllProducts' THEN 'dsa_all_products'
-        WHEN(RTRIM(LTRIM(campaign))) = 'RLSA_CartAbandoners' THEN 'rlsa_cart_abandoners'
-        ELSE LOWER(LTRIM(RTRIM(campaign)))
-    END AS campaign,
-    
-
---Fix landing page '/' is set to homepage 
     CASE 
-    WHEN RTRIM(LTRIM(landing_page)) = '/' THEN 'homepage'
-    WHEN NULLIF(TRIM(
-                    REPLACE(REPLACE(REPLACE(REPLACE(landing_page,
-                        CHAR(9), ''),   
-                        CHAR(10), ''), 
-                        CHAR(13), ''),  
-                        CHAR(160), '')),'') IS NULL THEN 'unknown/not/set'
+        WHEN TRIM(LOWER(channel_grouping)) IS NULL THEN 'unknown'
+        WHEN TRIM(LOWER(channel_grouping)) = '' THEN 'unknown'
+        WHEN LOWER(TRIM(channel_grouping)) LIKE 'paid social' THEN 'paid_social'
+        ELSE LOWER(TRIM(channel_grouping ))
+    END AS channel_grouping, 
 
-    WHEN (LTRIM(RTRIM(landing_page))) = 'null' THEN 'unknow/not/set'
-    ELSE LOWER(TRIM(landing_page)) 
-    END AS landing_page,
+    --Fix traffic source
 
---Device category it had hidden characters hance the complex replace query 
+    COALESCE(LOWER(TRIM(source)), 'unknown') AS source,
 
-CASE WHEN LOWER(LTRIM(RTRIM(device_category))) = ' ' THEN 'unknown'
-     WHEN NULLIF(TRIM(
-                    REPLACE(REPLACE(REPLACE(REPLACE(device_category,
-                        CHAR(9), ''),   
-                        CHAR(10), ''), 
-                        CHAR(13), ''),  
-                        CHAR(160), '')),'') IS NULL THEN 'unknown'
-    ELSE LOWER(TRIM(device_category)) 
-    END AS device_category,
+    --Fix traffic medium
 
---Pageviews turning negative into positive negative pagview is a system error in this case since we have no access to the source controller
+    COALESCE(LOWER(TRIM(medium)), 'unknown') AS medium,
 
-    CAST(ABS(ISNULL(NULLIF(TRIM(pageviews), ' '), 0 )) AS INT) AS pageviews,
+    --Fix campaign names 
 
- --Sessions 
+    CASE 
+            WHEN campaign IS NULL OR LEN(LTRIM(RTRIM(campaign))) = 0 THEN 'unknown'
+            WHEN(RTRIM(LTRIM(campaign))) ='null' THEN 'unknown'
+            WHEN(RTRIM(LTRIM(campaign))) = 'DSA_AllProducts' THEN 'dsa_all_products'
+            WHEN(RTRIM(LTRIM(campaign))) = 'RLSA_CartAbandoners' THEN 'rlsa_cart_abandoners'
+            ELSE LOWER(LTRIM(RTRIM(campaign)))
+        END AS campaign,
+    
+
+    --Fix landing page '/' is set to homepage 
+        CASE 
+        WHEN RTRIM(LTRIM(landing_page)) = '/' THEN 'homepage'
+        WHEN NULLIF(TRIM(
+                        REPLACE(REPLACE(REPLACE(REPLACE(landing_page,
+                            CHAR(9), ''),   
+                            CHAR(10), ''), 
+                            CHAR(13), ''),  
+                            CHAR(160), '')),'') IS NULL THEN 'unknown/not/set'
+
+        WHEN (LTRIM(RTRIM(landing_page))) = 'null' THEN 'unknow/not/set'
+        ELSE LOWER(TRIM(landing_page)) 
+        END AS landing_page,
+
+    --Device category it had hidden characters hance the complex replace query 
+
+    CASE WHEN LOWER(LTRIM(RTRIM(device_category))) = ' ' THEN 'unknown'
+         WHEN NULLIF(TRIM(
+                        REPLACE(REPLACE(REPLACE(REPLACE(device_category,
+                            CHAR(9), ''),   
+                            CHAR(10), ''), 
+                            CHAR(13), ''),  
+                            CHAR(160), '')),'') IS NULL THEN 'unknown'
+        ELSE LOWER(TRIM(device_category)) 
+        END AS device_category,
+
+    --Pageviews turning negative into positive negative pagview is a system error in this case since we have no access to the source controller
+
+        CAST(ABS(ISNULL(NULLIF(TRIM(pageviews), ' '), 0 )) AS INT) AS pageviews,
+
+     --Sessions 
 
 
-    CAST(ABS(ISNULL(NULLIF(TRIM(sessions), ' '),0 )) AS INT) AS sessions,
+        CAST(ABS(ISNULL(NULLIF(TRIM(sessions), ' '),0 )) AS INT) AS sessions,
 
---Bounce 
+    --Bounce 
 
     
-    CAST(ABS(ISNULL(NULLIF(TRIM(bounce), ' '),0 )) AS INT) AS bounce,
+        CAST(ABS(ISNULL(NULLIF(TRIM(bounce), ' '),0 )) AS INT) AS bounce,
 
 
---User_id 
+    --User_id 
 
-    COALESCE(LOWER(TRIM(user_id)), 'unknown_user') AS user_id,
+        COALESCE(LOWER(TRIM(user_id)), 'unknown') AS user_id,
 
---Time on site
+    --Time on site
 
-    CAST(ABS(ISNULL(NULLIF(TRIM(time_on_site_secs), ' '), 0)) AS INT) AS time_on_site_secs,
+        CAST(ABS(ISNULL(NULLIF(TRIM(time_on_site_secs), ' '), 0)) AS INT) AS time_on_site_secs,
 
---Converted
-     CAST(ABS(ISNULL(NULLIF(TRIM(converted), ' '), 0)) AS INT) AS converted,
--- Flag valid session 
-      CASE
-    WHEN sessions < 0 THEN 0
-    WHEN pageviews < 0 THEN 0
-    WHEN bounce NOT IN (0,1) THEN 0
-    WHEN converted < 0 THEN 0
-    ELSE 1
-END AS is_valid_session,
+    --Converted
+         CAST(ABS(ISNULL(NULLIF(TRIM(converted), ' '), 0)) AS INT) AS converted,
+    -- Flag valid session 
+          CASE
+        WHEN sessions < 0 THEN 0
+        WHEN pageviews < 0 THEN 0
+        WHEN bounce NOT IN (0,1) THEN 0
+        WHEN converted < 0 THEN 0
+        ELSE 1
+    END AS is_valid,
   
    
---Order value 
-     ISNULL(ABS(TRY_CAST(TRIM(TRANSLATE(order_value_gbp, '€$%£', '    ')) 
-    AS DECIMAL(18,2))), 0) AS order_value_gbp, 
+    --Order value 
+         ISNULL(ABS(TRY_CAST(TRIM(TRANSLATE(order_value_gbp, '€$%£', '    ')) 
+        AS DECIMAL(18,2))), 0) AS order_value_gbp, 
   
 
---Fix country codes in to country names 
+    --Fix country codes in to country names 
 
-CASE WHEN RTRIM(LTRIM(country)) = 'US' THEN 'United States'
-     WHEN RTRIM(LTRIM(country)) = 'UK' THEN 'United Kingdom'
-     WHEN RTRIM(LTRIM(country)) = 'GB' THEN 'United Kingdom'
-     WHEN RTRIM(LTRIM(country)) = 'AUS' THEN 'Australia'
-     WHEN NULLIF(TRIM(
-                    REPLACE(REPLACE(REPLACE(REPLACE(country,
-                        CHAR(9), ''),   
-                        CHAR(10), ''), 
-                        CHAR(13), ''),  
-                        CHAR(160), '')),'') IS NULL THEN 'unknown'
-    ELSE  LTRIM(RTRIM(country))
-END AS country,
+    CASE WHEN RTRIM(LTRIM(country)) = 'US' THEN 'United States'
+         WHEN RTRIM(LTRIM(country)) = 'UK' THEN 'United Kingdom'
+         WHEN RTRIM(LTRIM(country)) = 'GB' THEN 'United Kingdom'
+         WHEN RTRIM(LTRIM(country)) = 'AUS' THEN 'Australia'
+         WHEN NULLIF(TRIM(
+                        REPLACE(REPLACE(REPLACE(REPLACE(country,
+                            CHAR(9), ''),   
+                            CHAR(10), ''), 
+                            CHAR(13), ''),  
+                            CHAR(160), '')),'') IS NULL THEN 'unknown'
+        ELSE  LTRIM(RTRIM(country))
+    END AS country,
 
---New_vs_returning had empty and null cells hence the complex replace query to make sure only consistent data passes into gold 
+    --New_vs_returning had empty and null cells hence the complex replace query to make sure only consistent data passes into gold 
 
     CASE 
-    WHEN LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(new_vs_returning, 
-        CHAR(9), ''), CHAR(10), ''), CHAR(13), ''), CHAR(160), ''))) = 'new' 
-        THEN 1
-    WHEN LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(new_vs_returning, 
-        CHAR(9), ''), CHAR(10), ''), CHAR(13), ''), CHAR(160), ''))) = 'returning' 
-        THEN 0
+        WHEN LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(new_vs_returning, 
+            CHAR(9), ''), CHAR(10), ''), CHAR(13), ''), CHAR(160), ''))) = 'new' 
+            THEN 1
+        WHEN LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(new_vs_returning, 
+            CHAR(9), ''), CHAR(10), ''), CHAR(13), ''), CHAR(160), ''))) = 'returning' 
+            THEN 0
     ELSE 0 
-END AS new_vs_returning_flag
+    END AS new_vs_returning_flag
 
---Left out calculated and agregated data as they are based on skewed numbers we do aggregation in gold layer 
+    --Left out calculated and agregated data as they are based on skewed numbers we do aggregation in gold layer 
 
 
-FROM 
-bronze.web_analytics;
+    FROM 
+    bronze.web_analytics;
 
 	
 	
-	SET @end_time = GETDATE ();
-		PRINT'>> Load Duration:'+ CAST (DATEDIFF( second, @start_time, @end_time) AS VARCHAR ) + 'seconds';
-		PRINT'>>--------------------------------------------------------------------------------------<<'
+	    SET @end_time = GETDATE ();
+		    PRINT'>> Load Duration:'+ CAST (DATEDIFF( second, @start_time, @end_time) AS VARCHAR ) + 'seconds';
+		    PRINT'>>--------------------------------------------------------------------------------------<<'
 
-        PRINT 'Loading Silver Layer is Completed';
-		PRINT '- Total Duration: '+ CAST(DATEDIFF( second, @start_time, @end_time) AS VARCHAR ) + 'seconds';
-		PRINT '========================================================================================================';
+            PRINT 'Loading Silver Layer is Completed';
+		    PRINT '- Total Duration: '+ CAST(DATEDIFF( second, @start_time, @end_time) AS VARCHAR ) + 'seconds';
+		    PRINT '========================================================================================================';
 	
-	END TRY
+	    END TRY
 
-	BEGIN CATCH 
-PRINT '==========================================================';
-PRINT 'ERROR OCCURRED DURING LOADING BRONZE LAYER ';
-PRINT'Error Message' + CAST( ERROR_MESSAGE() AS NVARCHAR);
-PRINT'Error Message' + CAST (ERROR_NUMBER() AS NVARCHAR);
-PRINT '==========================================================';
-END CATCH
+	    BEGIN CATCH 
+    PRINT '==========================================================';
+    PRINT 'ERROR OCCURRED DURING LOADING BRONZE LAYER ';
+    PRINT'Error Message' + CAST( ERROR_MESSAGE() AS NVARCHAR);
+    PRINT'Error Message' + CAST (ERROR_NUMBER() AS NVARCHAR);
+    PRINT '==========================================================';
+    END CATCH
 
-END
+    END
 
-GO
+    GO
+
