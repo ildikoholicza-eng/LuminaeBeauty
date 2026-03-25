@@ -514,7 +514,7 @@ INSERT INTO silver.meta_ads(
         END AS is_valid,
 
         COALESCE(LOWER(TRIM(attributed_channel)), 'unknown') AS attributed_channel,
-        COALESCE(LOWER(TRIM(attributed_campaign)), 'unknown') AS attributed_campaign,
+        COALESCE(NULLIF(NULLIF(LOWER(TRIM(attributed_campaign)), ''), 'null'), 'unknown') AS attributed_campaign,
         COALESCE(LOWER(TRIM(attributed_source)), 'unknown') AS attributed_source,
         COALESCE(LOWER(TRIM(session_id)), 'unknown') AS session_id,
         COALESCE(LOWER(TRIM(payment_method)), 'unknown') AS payment_method,
