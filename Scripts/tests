@@ -249,3 +249,72 @@ where
 pageviews < sessions
 or bounce> sessions
 or converted> sessions;
+
+/*=============================================================================================================================
+==========================================================================================================================7
+
+Check if my gold layer worked
+=======================================================================================================================7
+*/
+
+--Row count
+
+
+SELECT 
+    'Orders' AS Table_Name, 
+    (SELECT COUNT(*) FROM silver.orders) AS Silver_Count, 
+    (SELECT COUNT(*) FROM gold.view_fact_orders) AS Gold_Count
+UNION ALL
+SELECT 
+    'Web Sessions', 
+    (SELECT COUNT(*) FROM silver.web_analytics), 
+    (SELECT COUNT(1) FROM gold.view_web)
+UNION ALL
+SELECT 
+    'Marketing Rows', 
+    (SELECT COUNT(*) FROM silver.google_ppc) + (SELECT COUNT(*) FROM silver.meta_ads), 
+    (SELECT COUNT(*) FROM gold.view_marketing_performance);
+
+--Hash key connectivity
+SELECT TOP 10
+    f.order_id_clean,
+    f.web_context_key AS Order_Hash,
+    w.web_context_key AS Web_Hash,
+    f.order_total_gbp,
+    w.source,
+    w.campaign_name
+FROM gold.view_fact_orders f
+INNER JOIN gold.view_web w 
+    ON f.web_context_key = w.web_context_key 
+    AND f.date_key = w.date_key
+WHERE f.web_context_key IS NOT NULL;
+
+--business logic sanity check 
+
+SELECT 
+    COALESCE(w.source, 'Direct/Other') AS Traffic_Source,
+    COUNT(DISTINCT f.order_id_clean) AS Total_Orders,
+    SUM(f.order_total_gbp) AS Total_Revenue,
+    -- Calculate Average Order Value (AOV)
+    CASE 
+        WHEN COUNT(DISTINCT f.order_id_clean) > 0 
+        THEN SUM(f.order_total_gbp) / COUNT(DISTINCT f.order_id_clean) 
+        ELSE 0 
+    END AS AOV
+FROM gold.view_fact_orders f
+LEFT JOIN gold.view_web w ON f.web_context_key = w.web_context_key
+GROUP BY w.source
+ORDER BY Total_Revenue DESC;
+
+--Cleanness check
+SELECT 
+    COALESCE(w.campaign_name, 'No Campaign/Direct') AS Campaign,
+    COALESCE(w.source, 'Unknown') AS Source,
+    COUNT(DISTINCT f.order_id_clean) AS Total_Orders,
+    SUM(f.order_total_gbp) AS Generated_Revenue,
+    -- Calculate the percentage of total revenue for this campaign
+    CAST(SUM(f.order_total_gbp) * 100.0 / SUM(SUM(f.order_total_gbp)) OVER() AS DECIMAL(10,2)) AS Revenue_Share_Pct
+FROM gold.view_fact_orders f
+INNER JOIN gold.view_web w ON f.web_context_key = w.web_context_key
+GROUP BY w.campaign_name, w.source
+ORDER BY Generated_Revenue DESC;
