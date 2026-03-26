@@ -151,6 +151,18 @@ CASE
 END AS list_segment
 
 --Left out calculated and agregated data as they are based on skewed numbers we do aggregation in gold layer 
+WHERE 
+    -- 1. Must have a Campaign ID or Date to be a valid record
+    (campaign_id IS NOT NULL OR send_date IS NOT NULL)
+    
+    -- 2. Exclude rows where volume is zero or missing
+    AND ISNULL(TRY_CAST(TRIM(total_sent) AS INT), 0) > 0
+    
+    -- 3. Exclude rows with clearly corrupted negative numbers 
+    -- (Better to exclude than to guess with ABS() if the data is untrustworthy)
+    AND TRY_CAST(TRIM(opened) AS INT) >= 0
+    AND TRY_CAST(TRIM(clicked) AS INT) >= 0
+    AND TRY_CAST(TRIM(delivered) AS INT) >= 0;
 
 FROM bronze.email_analytics;
 
