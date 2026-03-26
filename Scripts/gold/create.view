@@ -1,1 +1,143 @@
 
+/*
+================================================================---------------
+OMNI-CHANNEL MARKETING INTELLIGENCE PLATFORM (GOLD LAYER)
+
+Architecture: Medallion (Silver -> Gold)
+Description: 
+    This script creates the Gold Layer Views using cleaned Silver layer 
+    columns. It synchronizes Marketing Spend and Order Revenue using 
+    a deterministic MD5 Hash Key.
+================================================================---------------
+*/
+
+-----------------------------------------------------------------------------------
+-- 1. DATE DIMENSION VIEW
+-----------------------------------------------------------------------------------
+IF OBJECT_ID('gold.view_dim_date', 'V') IS NOT NULL DROP VIEW gold.view_dim_date;
+GO
+
+CREATE VIEW gold.view_dim_date AS
+SELECT 
+    date_key,
+    full_date,
+    year_int,
+    month_name,
+    is_weekend
+FROM gold.dim_date;
+GO
+
+-----------------------------------------------------------------------------------
+-- 2. MARKETING PERFORMANCE VIEW
+-----------------------------------------------------------------------------------
+IF OBJECT_ID('gold.view_marketing_performance', 'V') IS NOT NULL DROP VIEW gold.view_marketing_performance;
+GO
+
+CREATE VIEW gold.view_marketing_performance AS
+-- Google Ads Data
+SELECT 
+    CAST(FORMAT(event_date, 'yyyyMMdd') AS INT) AS date_key,
+    'Google' AS platform,
+    -- Match Hash Key with Web and Orders logic
+    CONVERT(VARCHAR(64), HASHBYTES('MD5', 
+        'google|cpc|' + LOWER(TRIM(CAST(ISNULL(Campaign, 'unknown') AS VARCHAR(100))))
+    ), 2) AS web_context_key,
+    Impressions AS impressions,
+    Clicks AS clicks,
+    Cost_GBP AS spend_gbp,
+    Conversions AS conversions
+FROM silver.google_ppc
+
+UNION ALL
+
+-- Meta Ads Data
+SELECT 
+    CAST(FORMAT(report_date, 'yyyyMMdd') AS INT) AS date_key,
+    'Meta' AS platform,
+    CONVERT(VARCHAR(64), HASHBYTES('MD5', 
+        'facebook|social|' + LOWER(TRIM(CAST(ISNULL(campaign_name, 'unknown') AS VARCHAR(100))))
+    ), 2) AS web_context_key,
+    impressions,
+    clicks,
+    spend_gbp,
+    0 AS conversions
+FROM silver.meta_ads;
+GO
+
+-----------------------------------------------------------------------------------
+-- 3. WEB ANALYTICS VIEW
+-----------------------------------------------------------------------------------
+IF OBJECT_ID('gold.view_web', 'V') IS NOT NULL DROP VIEW gold.view_web;
+GO
+
+CREATE VIEW gold.view_web AS
+SELECT 
+    CAST(FORMAT(wa.session_date, 'yyyyMMdd') AS INT) AS date_key,
+    CONVERT(VARCHAR(64), HASHBYTES('MD5', 
+        LOWER(TRIM(CAST(ISNULL(wa.source, 'unknown') AS VARCHAR(100)))) + '|' + 
+        LOWER(TRIM(CAST(ISNULL(wa.medium, 'unknown') AS VARCHAR(100)))) + '|' + 
+        LOWER(TRIM(CAST(ISNULL(wa.campaign, 'unknown') AS VARCHAR(100))))
+    ), 2) AS web_context_key,
+    wa.source,
+    wa.medium,
+    -- Portfolio Tip: Standardizing messy UTM campaign names
+    CASE 
+        WHEN wa.campaign LIKE '%serum%' THEN 'serum'
+        WHEN wa.campaign LIKE '%brand%' THEN 'brand'
+        WHEN wa.campaign LIKE '%dpa%'   THEN 'meta'
+        WHEN wa.campaign LIKE '%dsa%'   THEN 'google dynamic'
+        ELSE TRIM(wa.campaign)
+    END AS campaign_name,
+    wa.device_category,
+    d.full_date
+FROM silver.web_analytics wa
+LEFT JOIN gold.dim_date d ON CAST(FORMAT(wa.session_date, 'yyyyMMdd') AS INT) = d.date_key;
+GO
+
+-----------------------------------------------------------------------------------
+-- 4. ORDER DIMENSION VIEW (Unique Order Metadata)
+-----------------------------------------------------------------------------------
+IF OBJECT_ID('gold.view_dim_orders', 'V') IS NOT NULL DROP VIEW gold.view_dim_orders;
+GO
+
+CREATE VIEW gold.view_dim_orders AS
+SELECT DISTINCT
+    order_id_clean,
+    product_name,
+    order_status,
+    payment_method,
+    coupon_code,
+    is_refund,
+    is_new_customer,
+    LOWER(TRIM(CAST(attributed_source AS VARCHAR(100)))) AS attributed_source,
+    LOWER(TRIM(CAST(attributed_channel AS VARCHAR(100)))) AS attributed_channel
+FROM silver.orders;
+GO
+
+-----------------------------------------------------------------------------------
+-- 5. ORDER FACT VIEW (Transaction Measures)
+-----------------------------------------------------------------------------------
+IF OBJECT_ID('gold.view_fact_orders', 'V') IS NOT NULL DROP VIEW gold.view_fact_orders;
+GO
+
+CREATE VIEW gold.view_fact_orders AS
+SELECT 
+    order_id_clean,
+    CAST(FORMAT(order_date, 'yyyyMMdd') AS INT) AS date_key,
+    customer_id,
+    product_sku,
+    quantity,
+    unit_price_gbp,
+    discount_gbp,
+    subtotal_gbp,
+    shipping_gbp,
+    order_total_gbp,
+    -- Attribution Hash Key (Ensures 1:1 match with Marketing/Web Views)
+    CONVERT(VARCHAR(64), HASHBYTES('MD5', 
+        LOWER(TRIM(CAST(ISNULL(attributed_source, 'unknown') AS VARCHAR(100)))) + '|' + 
+        LOWER(TRIM(CAST(ISNULL(attributed_channel, 'unknown') AS VARCHAR(100)))) + '|' + 
+        LOWER(TRIM(CAST(ISNULL(attributed_campaign, 'unknown') AS VARCHAR(100))))
+    ), 2) AS web_context_key
+FROM silver.orders;
+GO
+
