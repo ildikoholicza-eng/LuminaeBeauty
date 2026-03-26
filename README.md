@@ -35,5 +35,12 @@
 ##### Roadmap: Database Schema Design -> Bronze Ingestion Script -> Silver Layer Data Cleaning -> Gold Layer Aggregations -> Dashboard Integration 
 ##### Small note here, I handled NULL values by imputing 'unknown1 or 0 due to lack of control over source data. My project aims to trace the data through the pipeline and demonstrate calculations using simple business logic. There is a difference between missing data and actual null values. I also left some aggregated columns in the bronze layer as calculations were based on skewed numbers. I decided every calculation should happen in the gold layer with clean data.
 
+##### Initially, the project was designed to ingest 'Dirty' AI-generated data to simulate real-world tracking issues (Nulls and 'Unknown' tags). My original intent was to visualize these gaps in the final analysis.
+
+##### However, during the transition to the Gold Layer (Star Schema), I identified that the volume of invalid data prevented a meaningful ROAS (Return on Ad Spend) calculation. Since I lacked access to the source generator to 'fix' the upstream logic, I made the strategic decision to implement a Data Quality Gate at the Silver-to-Gold transition.
+
+##### Decision: I excluded records with NULL or Unknown campaign names.
+##### Result: This allowed for a technically sound Star Schema that could be successfully plugged into Tableau, prioritizing a 'Clean Source of Truth' for the final stakeholders.
+
 ###### Feel free to use the scripts and dataset
 
