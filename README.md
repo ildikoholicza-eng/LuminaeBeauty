@@ -1,46 +1,50 @@
-# LuminaeBeauty
-## Project Overview 
-#### This project demonstrates the design and implementation of a professional Data warehouse using Microsoft SQL Server(T-SQL). It follows the Medallion Architecture to transform raw, synthetic e-commerce data into actionable business intelligence. The goal is to provide a clean, reliable " Single Source of Truth" for the company moving from messy ingestion to high-value reporting.
-#### Data Source: Import data from 5 sources: e-commerce orders, Meta ads, Google PPC, Email Analytics, Web Analytics.
+# LumineaBeauty: Omni-Channel Marketing Intelligence Platform
+### *A Medallion Architecture Portfolio Project*
 
+## 🌟 Project Overview
+**LumineaBeauty** is an end-to-end data warehousing solution built using **Microsoft SQL Server (T-SQL)**. This project transforms messy, synthetic e-commerce data into a "Single Source of Truth" for business intelligence. 
 
-### The Architecture
-#### I have implemented a three-layer Medallion system to ensure data integrity and scalability:
-#### - Bronze (Raw): Landing zone for original CSV files. Data is stored as VARCHAR(MAX) to prevent ingestion failures.
-#### - Silver (Cleaned): Data is cast to correct types (Dates, Decimals, Integers), duplicates are removed, and NULLs are handled.
-#### - Gold (Curated): Business-Level aggregates and joined tables optimised for reporting and visualisation.
+I initiated this project to test my technical grit by applying a **Medallion Architecture** to a complex marketing setting. Drawing on my **HND in Marketing** and my background in the beauty industry, I designed this system to reconcile advertising spend with transactional revenue—a core challenge in modern e-commerce.
 
-### Data Sources (Synthetic) 
-#### The warehouse ingests five core marketing and sales streams:
-#### 1, Orders Raw: Customer transactions and revenue.
-#### 2, Web Analytics Raw: Site traffic and user behaviour.
-#### 3, Email Analytics Raw: Newsletter performance  (Open, Clicks).
-#### 4, Google PPC Raw: Search engine marketing spend and performance.
-#### 5, Meta Ads Raw: Social Media advertising metrics. 
-### Key Technical Features
+This project was inspired by the architectural principles taught by **Baraa Khatib**, which I then adapted and expanded upon independently to handle high-complexity marketing datasets.
 
-#### Indempotent Scripts: All SQL scripts use IF NOT EXISTS and DROP TABLE IF EXISTS logic. This ensures the environment can be reset or redeployed safely without causing  system errors or accidental data loss.
-#### Defensive Schema Design: Schemas are created dynamically using EXEC to bypass batch requirements, demonstrating advanced T-SQL scripting.
-#### Future-Ready: The Gold Layer is designed to integrate with visualisation tools such as Power BI or Tableau for executive reporting. 
+## 🏗️ The Architecture
+I implemented a three-layer Medallion system to ensure data integrity and scalability:
+* **Bronze (Raw):** The landing zone for original CSV files. Data is stored as `VARCHAR(MAX)` to ensure 100% ingestion success without data type conflicts.
+* **Silver (Cleaned):** Data is cast to correct types (Dates, Decimals, Integers), duplicates are removed, and `NULL` values are handled (imputed as 'unknown' or 0).
+* **Gold (Curated):** Business-level aggregates and joined tables optimized for reporting and visualization.
 
-### How to Use 
-#### 1,  Clone the repo: Download the SQL scripts and CSV files.
-#### 2, Rum Setup: Execute  0_setup_database.sql to create the LuminaeBeauty database and the Bronze/Silver/Gold schemas.
-#### 3, Ingest Data: Use the provided scripts to import the CSV files into the Bronze schema.
-#### 4, Transform: Run the Silver and Gold layer scripts to process the data.
+## 📊 Data Sources (Synthetic)
+The warehouse ingests and synchronizes five core marketing and sales streams:
+1.  **Orders Raw:** Customer transactions and revenue.
+2.  **Web Analytics Raw:** Site traffic and user behavior.
+3.  **Email Analytics Raw:** Newsletter performance (Opens, Clicks).
+4.  **Google PPC Raw:** Search engine marketing spend and performance.
+5.  **Meta Ads Raw:** Social Media advertising metrics.
 
+## 🧠 Key Technical Features & Challenges
 
+### **1. Resilience Against "Dirty" Data**
+The dataset was intentionally AI-generated to be "hard and messy," simulating real-world tracking issues. I encountered significant challenges with missing campaign tags and null values. This project pushed me to my limits, but I remained resilient, learning new ways to script SQL and troubleshoot deep logic errors.
 
+### **2. Strategic Data Quality Gate**
+During the transition to the Gold Layer (Star Schema), I identified that the volume of invalid data prevented a meaningful ROAS (Return on Ad Spend) calculation. Since I lacked access to the source generator to "fix" the upstream logic, I made a strategic decision:
+* **Decision:** I implemented a strict **Data Quality Gate**, excluding records with `NULL` or `Unknown` campaign names.
+* **Result:** This allowed for a technically sound Star Schema that provides a "Clean Source of Truth" for stakeholders, prioritizing accuracy over volume.
 
-##### Roadmap: Database Schema Design -> Bronze Ingestion Script -> Silver Layer Data Cleaning -> Gold Layer Aggregations -> Dashboard Integration 
-##### Small note here, I handled NULL values by imputing 'unknown1 or 0 due to lack of control over source data. My project aims to trace the data through the pipeline and demonstrate calculations using simple business logic. There is a difference between missing data and actual null values. I also left some aggregated columns in the bronze layer as calculations were based on skewed numbers. I decided every calculation should happen in the gold layer with clean data.
+### **3. Advanced T-SQL Scripting**
+* **Idempotent Scripts:** Used `IF NOT EXISTS` and `DROP` logic to ensure the environment is safely repeatable.
+* **Deterministic Hashing:** Implemented **MD5 Hashing** to join disparate datasets (Marketing vs. Orders) where no natural primary key existed.
+* **Defensive Design:** Used dynamic SQL (`EXEC`) for schema creation to bypass batch requirements.
 
-##### Initially, the project was designed to ingest 'Dirty' AI-generated data to simulate real-world tracking issues (Nulls and 'Unknown' tags). My original intent was to visualize these gaps in the final analysis.
+## 🛠️ How to Use
+1.  **Clone the Repo:** Download the SQL scripts and CSV files.
+2.  **Run Setup:** Execute `0_setup_database.sql` to create the `LumineaBeauty` database and the Bronze/Silver/Gold schemas.
+3.  **Ingest Data:** Use the provided scripts to import the CSV files into the Bronze schema.
+4.  **Transform:** Run the Silver and Gold layer scripts to process the data into the final reporting views.
 
-##### However, during the transition to the Gold Layer (Star Schema), I identified that the volume of invalid data prevented a meaningful ROAS (Return on Ad Spend) calculation. Since I lacked access to the source generator to 'fix' the upstream logic, I made the strategic decision to implement a Data Quality Gate at the Silver-to-Gold transition.
+## 🛣️ Roadmap
+**Database Design** ➔ **Bronze Ingestion** ➔ **Silver Cleaning** ➔ **Gold Aggregation** ➔ **Dashboard Integration (Power BI/Tableau)**
 
-##### Decision: I excluded records with NULL or Unknown campaign names.
-##### Result: This allowed for a technically sound Star Schema that could be successfully plugged into Tableau, prioritizing a 'Clean Source of Truth' for the final stakeholders.
-
-###### Feel free to use the scripts and dataset
-
+---
+*Note: This project represents my commitment to striving for senior-level standards. It proves that I have the resilience to tackle projects "bigger than I can chew" and the technical ability to deliver a professional finish.*
