@@ -190,3 +190,102 @@ GO
 -- Quick Check
 SELECT TOP 20 * FROM gold.fact_marketing_performance
 ORDER BY event_date DESC;
+/* ============================================================
+DIMENSION VIEW: gold.dim_sources
+Includes: Source, Medium, Channel Group, and Device Type
+============================================================ */
+IF OBJECT_ID('gold.dim_sources', 'V') IS NOT NULL
+    DROP VIEW gold.dim_sources;
+GO
+
+CREATE VIEW gold.dim_sources AS
+SELECT 
+    -- Generating a consistent ID based on the unique combination
+    DENSE_RANK() OVER (ORDER BY source, medium, channel_grouping, device_category) AS source_key,
+    source AS source_name,
+    medium,
+    channel_grouping,
+    device_category AS device_type
+FROM silver.web_analytics
+GROUP BY source, medium, channel_grouping, device_category;
+GO
+
+/* ============================================================
+DIMENSION VIEW: gold.dim_products
+Consistent with existing Silver data types
+============================================================ */
+IF OBJECT_ID('gold.dim_products', 'V') IS NOT NULL
+    DROP VIEW gold.dim_products;
+GO
+
+CREATE VIEW gold.dim_products AS
+SELECT DISTINCT
+    DENSE_RANK() OVER (ORDER BY product_sku, product_name) AS product_key,
+    product_sku,
+    product_name,
+    -- Simple category logic for Power BI grouping
+    CASE 
+        WHEN product_name LIKE '%serum%' THEN 'Serums'
+        WHEN product_name LIKE '%moisturiser%' OR product_name LIKE '%cream%' THEN 'Moisturisers'
+        WHEN product_name LIKE '%toner%' THEN 'Toners'
+        ELSE 'Skincare'
+    END AS category
+FROM silver.orders
+WHERE product_name IS NOT NULL 
+  AND product_name <> 'unknown';
+GO
+/* ============================================================
+FACT VIEW: gold.fact_orders
+Logic: Filtered for valid transactions and linked to Gold Dimensions
+============================================================ */
+IF OBJECT_ID('gold.fact_orders', 'V') IS NOT NULL
+    DROP VIEW gold.fact_orders;
+GO
+
+CREATE VIEW gold.fact_orders AS
+SELECT 
+    -- Primary Key for the Fact Table
+    ROW_NUMBER() OVER (ORDER BY o.order_date, o.order_id_clean) AS order_line_id,
+    o.order_id_clean AS order_id,
+    o.order_date,
+    
+    -- Foreign Keys to Gold Dimensions
+    dp.product_key,
+    dc.campaign_key,
+    
+    -- Order Attributes
+    o.customer_id,
+    o.session_id,
+    o.payment_method,
+    o.order_status,
+    o.coupon_code,
+    o.attributed_channel,
+    o.attributed_source,
+    
+    -- Numeric Measures
+    o.quantity,
+    o.unit_price_gbp,
+    o.discount_gbp,
+    o.subtotal_gbp,
+    o.shipping_gbp,
+    o.order_total_gbp,
+    
+    -- Flags
+    o.is_refund,
+    o.is_valid_transaction,
+    o.is_new_customer
+FROM silver.orders o
+-- Match to Product Dim
+LEFT JOIN gold.dim_products dp 
+    ON o.product_sku = dp.product_sku 
+    AND o.product_name = dp.product_name
+-- Match to Campaign Dim
+LEFT JOIN gold.dim_campaign_name dc 
+    ON o.attributed_campaign = dc.raw_campaign_name
+
+/* --- DATA QUALITY FILTERS --- */
+WHERE o.order_date > '1900-01-01'              -- Filter out placeholder dates
+  AND o.product_name <> 'unknown'             -- Filter out untracked products
+  AND o.order_status NOT IN ('cancelled')     -- Filter out non-sales
+  AND o.order_total_gbp > 0;                  -- Filter out zero-value errors
+GO
