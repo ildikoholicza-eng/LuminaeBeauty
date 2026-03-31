@@ -1,0 +1,234 @@
+ /*
+
+LUMINAE BEAUTY: GOLD LAYER TRANSFORMATION SCRIPT
+Project: Omni-Channel Marketing & Sales Analytics
+Architecture: Star Schema (Medallion - Gold Layer)
+Author: Ildiko Holicza
+
+Description:
+- Assumes Silver layer has handled all data cleansing and validation.
+- Focuses on dimensional modeling and analytics-ready structure.
+- Unifies Campaign, Product, Source, and Date dimensions.
+- Enables KPI reporting: ROAS, CPA, AOV, Conversion Rate.
+=========================================================
+
+*/
+
+---
+
+-- 1. DIMENSION: gold.dim_date
+
+IF OBJECT_ID('gold.dim_date', 'V') IS NOT NULL DROP VIEW gold.dim_date;
+GO
+
+CREATE VIEW gold.dim_date AS
+SELECT DISTINCT
+CAST(CONVERT(VARCHAR(8), d, 112) AS INT) AS date_key,
+d AS full_date,
+YEAR(d) AS year_int,
+DATENAME(MONTH, d) AS month_name,
+DATEPART(MONTH, d) AS month_int,
+DATEPART(WEEKDAY, d) AS weekday_int,
+CASE WHEN DATEPART(WEEKDAY, d) IN (1,7) THEN 1 ELSE 0 END AS is_weekend
+FROM (
+SELECT CAST(order_date AS DATE) AS d FROM silver.orders
+UNION
+SELECT CAST(event_date AS DATE) FROM silver.google_ppc
+UNION
+SELECT CAST(report_date AS DATE) FROM silver.meta_ads
+UNION
+SELECT CAST(session_date AS DATE) FROM silver.web_analytics
+) AS dates;
+GO
+
+---
+
+ -- 2. DIMENSION: gold.dim_campaign_name
+
+IF OBJECT_ID('gold.dim_campaign_name', 'V') IS NOT NULL DROP VIEW gold.dim_campaign_name;
+GO
+
+CREATE VIEW gold.dim_campaign_name AS
+WITH combined_campaign AS (
+SELECT campaign_name AS raw_name, send_date AS c_date, 'Email' AS platform FROM silver.email_analytics
+UNION ALL
+SELECT campaign_name, report_date, 'Meta' FROM silver.meta_ads
+UNION ALL
+SELECT campaign, event_date, 'Google' FROM silver.google_ppc
+)
+SELECT
+ABS(CHECKSUM(raw_name)) AS campaign_key,
+raw_name AS raw_campaign_name,
+CASE
+WHEN raw_name LIKE 'wel%' THEN 'Welcome Series'
+WHEN raw_name LIKE '%newsletter%' THEN 'Newsletter'
+WHEN raw_name LIKE '%flash_sale%' THEN 'Flash Sale'
+WHEN raw_name LIKE '%abandon%' THEN 'Cart Abandoned'
+WHEN raw_name LIKE '%vip%' THEN 'Loyalty'
+WHEN raw_name LIKE '%serum%' THEN 'Serum Promo'
+WHEN raw_name LIKE '%moisturiser%' THEN 'Moisturiser Promo'
+ELSE 'General Awareness'
+END AS standard_campaign_name,
+CASE
+WHEN raw_name LIKE '%awareness%' OR raw_name LIKE '%brand%' THEN 'brand_awareness'
+WHEN raw_name LIKE '%cart%' OR raw_name LIKE '%sale%' THEN 'conversions'
+ELSE 'traffic'
+END AS campaign_objective,
+platform AS source_platform,
+MIN(c_date) AS start_date,
+MAX(c_date) AS end_date
+FROM combined_campaign
+GROUP BY raw_name, platform;
+GO
+
+---
+
+ -- 3. DIMENSION: gold.dim_products
+
+IF OBJECT_ID('gold.dim_products', 'V') IS NOT NULL DROP VIEW gold.dim_products;
+GO
+
+CREATE VIEW gold.dim_products AS
+SELECT DISTINCT
+ABS(CHECKSUM(product_sku, product_name)) AS product_key,
+product_sku,
+product_name,
+CASE
+WHEN product_name LIKE '%serum%' THEN 'Serums'
+WHEN product_name LIKE '%moisturiser%' OR product_name LIKE '%cream%' THEN 'Moisturisers'
+WHEN product_name LIKE '%toner%' THEN 'Toners'
+ELSE 'Skincare'
+END AS category
+FROM silver.orders;
+GO
+
+---
+
+ -- 4. DIMENSION: gold.dim_sources
+
+IF OBJECT_ID('gold.dim_sources', 'V') IS NOT NULL DROP VIEW gold.dim_sources;
+GO
+
+CREATE VIEW gold.dim_sources AS
+SELECT
+ABS(CHECKSUM(source, medium, channel_grouping, device_category)) AS source_key,
+source AS source_name,
+medium,
+channel_grouping,
+device_category AS device_type
+FROM silver.web_analytics
+GROUP BY source, medium, channel_grouping, device_category;
+GO
+
+---
+
+-- 5. FACT: gold.fact_marketing_performance
+
+IF OBJECT_ID('gold.fact_marketing_performance', 'V') IS NOT NULL DROP VIEW gold.fact_marketing_performance;
+GO
+
+CREATE VIEW gold.fact_marketing_performance AS
+WITH unified_source AS (
+SELECT campaign AS raw_name, event_date, Network AS channel,
+Impressions AS imp, Clicks AS clk, Cost_Gbp AS cost, Conv_Value_Gbp AS rev
+FROM silver.google_ppc
+
+UNION ALL
+
+SELECT campaign_name, report_date, 'Meta', impressions, clicks, spend_gbp, conversion_value_gbp
+FROM silver.meta_ads
+
+UNION ALL
+
+SELECT campaign, session_date, 'Email', 
+       0, sessions, 0, order_value_gbp
+FROM silver.web_analytics
+WHERE channel_grouping = 'email'
+
+
+)
+SELECT
+dc.campaign_key,
+CAST(CONVERT(VARCHAR(8), src.event_date, 112) AS INT) AS date_key,
+src.channel AS channel_source,
+src.cost AS spend,
+src.imp AS impressions,
+src.clk AS clicks,
+src.rev AS platform_attributed_revenue
+FROM unified_source src
+INNER JOIN gold.dim_campaign_name dc
+ON src.raw_name = dc.raw_campaign_name;
+GO
+
+---
+
+ -- 6. FACT: gold.fact_orders
+
+IF OBJECT_ID('gold.fact_orders', 'V') IS NOT NULL DROP VIEW gold.fact_orders;
+GO
+
+CREATE VIEW gold.fact_orders AS
+SELECT
+ROW_NUMBER() OVER (ORDER BY o.order_date, o.order_id_clean) AS order_line_id,
+o.order_id_clean AS order_id,
+CAST(CONVERT(VARCHAR(8), o.order_date, 112) AS INT) AS date_key,
+dp.product_key,
+dc.campaign_key,
+o.customer_id,
+o.order_status,
+o.quantity,
+o.unit_price_gbp,
+o.order_total_gbp AS net_revenue,
+o.is_new_customer,
+o.attributed_channel,
+o.attributed_source
+FROM silver.orders o
+LEFT JOIN gold.dim_products dp
+ON o.product_sku = dp.product_sku
+AND o.product_name = dp.product_name
+LEFT JOIN gold.dim_campaign_name dc
+ON o.attributed_campaign = dc.raw_campaign_name;
+GO
+
+---
+ -- 7. FACT: gold.fact_web_events
+
+IF OBJECT_ID('gold.fact_web_events', 'V') IS NOT NULL DROP VIEW gold.fact_web_events;
+GO
+
+CREATE VIEW gold.fact_web_events AS
+SELECT
+ROW_NUMBER() OVER (ORDER BY w.session_date, w.session_id) AS event_id,
+w.session_id,
+CAST(CONVERT(VARCHAR(8), w.session_date, 112) AS INT) AS date_key,
+
+
+dc.campaign_key,
+ds.source_key,
+
+w.user_id,
+w.landing_page,
+w.country,
+w.new_vs_returning,
+
+w.pageviews,
+w.sessions,
+w.bounce,
+w.time_on_site_secs,
+w.converted,
+w.order_value_gbp
+
+
+FROM silver.web_analytics w
+
+LEFT JOIN gold.dim_campaign_name dc
+ON w.campaign = dc.raw_campaign_name
+
+LEFT JOIN gold.dim_sources ds
+ON w.source = ds.source_name
+AND w.medium = ds.medium
+AND w.channel_grouping = ds.channel_grouping
+AND w.device_category = ds.device_type;
+GO
+
+
