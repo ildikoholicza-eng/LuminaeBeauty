@@ -1,1 +1,192 @@
+/*
+================================================================
+Creating campaign name dimension table 
+Primary Key: campaign_key
+Description: This view merges Email, Meta, and Google campaign 
+             data into a standardized dimension for the Gold layer.
+================================================================
+*/
 
+IF OBJECT_ID('gold.dim_campaign_name', 'V') IS NOT NULL
+    DROP VIEW gold.dim_campaign_name;
+GO
+
+CREATE VIEW gold.dim_campaign_name 
+AS
+WITH combined_campign AS (
+
+    -- EMAIL: Standardized Mapping + Objective Mapping
+    SELECT
+        send_date AS campaign_date,
+        campaign_name AS raw_campaign_name,
+        'Email' AS source_platform,
+        CASE
+            WHEN campaign_name LIKE 'wel%' THEN 'Welcome'
+            WHEN campaign_name LIKE '%newsletter%' THEN 'Newsletter'
+            WHEN campaign_name LIKE '%flash_sale%' THEN 'Flash Sale'
+            WHEN campaign_name LIKE '%abandon%' THEN 'Cart Abandoned'
+            WHEN campaign_name LIKE '%win_back%' THEN 'Win Back'
+            WHEN campaign_name LIKE '%vip%' THEN 'Loyalty'
+            ELSE 'Other'
+        END AS standard_campaign_name,
+        CASE
+            WHEN campaign_name = 'unknown' THEN 'unknown'
+            WHEN campaign_name LIKE 'monthly_newsletter%' THEN 'traffic'
+            WHEN campaign_name LIKE 'welcome_series%' THEN 'brand_awareness'
+            WHEN campaign_name LIKE 'flash_sale%' THEN 'conversions'
+            WHEN campaign_name LIKE 'abandoned_cart%' THEN 'conversions'
+            WHEN campaign_name LIKE 'vip_early_access%' THEN 'conversions'
+            WHEN campaign_name LIKE 'win_back%' THEN 'traffic'
+            ELSE 'unknown'
+        END AS campaign_objective
+    FROM silver.email_analytics
+    WHERE send_date > '2000-01-01' 
+
+    UNION ALL
+
+    -- META: Standardized Mapping + Objective Mapping
+    SELECT
+        report_date AS campaign_date,
+        campaign_name AS raw_campaign_name,
+        'Meta' AS source_platform,
+        CASE 
+            WHEN campaign_name LIKE '%nightcream%'  THEN 'Moisturizers'
+            WHEN campaign_name LIKE '%cart%'  THEN 'Cart Abandoned'
+            WHEN campaign_name LIKE '%dpa%'  THEN 'All Products'
+            WHEN campaign_name LIKE '%serum%'  THEN 'Serum'
+            WHEN campaign_name LIKE '%awarness%'  THEN 'Awareness'
+            WHEN campaign_name LIKE '%spf%'  THEN 'Sign-up'
+            ELSE 'Other'
+        END AS standard_campaign_name,
+        CASE 
+            WHEN campaign_name LIKE '%awareness%' THEN 'brand_awareness'
+            WHEN campaign_name LIKE '%cart%' THEN 'conversions'
+            ELSE 'conversions'
+        END AS campaign_objective
+    FROM silver.meta_ads
+    WHERE report_date > '2000-01-01' 
+
+    UNION ALL
+
+    -- GOOGLE PPC: Standardized Mapping + Objective Mapping
+    SELECT 
+        event_date AS campaign_date,
+        campaign AS raw_campaign_name,
+        'Google' AS source_platform,
+        CASE 
+            WHEN campaign LIKE '%moisturiser%'  THEN 'Moisturizers'
+            WHEN campaign LIKE '%cart%'  THEN 'Cart Abandoned'
+            WHEN campaign LIKE '%dsa%'  THEN 'All Products'
+            WHEN campaign LIKE '%serum%'  THEN 'Serum'
+            WHEN campaign LIKE '%skincare%'  THEN 'Skincare'
+            WHEN campaign LIKE '%kw%'  THEN 'Keyword Targeting'
+            ELSE 'Other'
+        END AS standard_campaign_name,
+        CASE 
+            WHEN campaign = 'unknown' THEN 'unknown'
+            WHEN campaign LIKE 'dsa_all_products%' THEN 'conversions'
+            WHEN campaign LIKE 'shopping_%' THEN 'conversions'
+            WHEN campaign LIKE 'generic_skincare_broad%' THEN 'traffic'
+            WHEN campaign LIKE 'brand_kw_exact%' THEN 'brand_awareness'
+            WHEN campaign LIKE 'rlsa_cart_abandoners%' THEN 'conversions'
+            WHEN campaign LIKE 'competitor_kw_bmm%' THEN 'brand_awareness'
+            ELSE 'unknown'
+        END AS campaign_objective
+    FROM silver.google_ppc
+    WHERE event_date > '2000-01-01' 
+
+) 
+
+SELECT
+    -- Unique key based on the raw name to ensure one ID per campaign
+    DENSE_RANK() OVER (ORDER BY raw_campaign_name) AS campaign_key,
+    raw_campaign_name,
+    standard_campaign_name,
+    source_platform,
+    campaign_objective,
+    MIN(campaign_date) AS start_date,
+    MAX(campaign_date) AS end_date,
+    DATEDIFF(day, MIN(campaign_date), MAX(campaign_date)) AS campaign_duration_day
+FROM 
+    combined_campign
+GROUP BY 
+    raw_campaign_name, 
+    standard_campaign_name,
+    source_platform,
+    campaign_objective;
+GO
+/*
+===============================================================================
+SCRIPT TO CREATE: gold.fact_marketing_performance
+Sources: silver.google_ppc, silver.meta_ads, silver.web_analytics
+Logic: 
+  - Unifies Google, Meta, and Email data into one standard schema.
+  - Joins with gold.dim_campaign_name to provide the Surrogate Key.
+===============================================================================
+*/
+
+IF OBJECT_ID('gold.fact_marketing_performance', 'V') IS NOT NULL
+    DROP VIEW gold.fact_marketing_performance;
+GO
+
+CREATE VIEW gold.fact_marketing_performance AS
+WITH unified_source AS (
+    -- 1. Google PPC Data
+    SELECT 
+        campaign AS raw_campaign_name,
+        event_date,
+        Network AS channel_source,
+        Impressions AS impressions,
+        Clicks AS clicks,
+        Cost_Gbp AS spend,
+        Conv_Value_Gbp AS revenue
+    FROM LuminaeBeauty.silver.google_ppc
+    WHERE event_date > '1900-01-01'
+
+    UNION ALL
+
+    -- 2. Meta Ads Data
+    SELECT 
+        campaign_name AS raw_campaign_name,
+        report_date AS event_date,
+        'Meta' AS channel_source,
+        impressions,
+        clicks,
+        spend_gbp AS spend,
+        conversion_value_gbp AS revenue
+    FROM LuminaeBeauty.silver.meta_ads
+    WHERE report_date > '1900-01-01'
+
+    UNION ALL
+
+    -- 3. Email/Web Analytics Data
+    SELECT 
+        campaign AS raw_campaign_name,
+        session_date AS event_date,
+        'Email' AS channel_source,
+        0 AS impressions,
+        sessions AS clicks, 
+        0 AS spend,
+        order_value_gbp AS revenue
+    FROM LuminaeBeauty.silver.web_analytics
+    WHERE channel_grouping = 'email' 
+      AND session_date > '1900-01-01'
+)
+
+SELECT 
+    dim.campaign_key,
+    src.event_date,
+    src.channel_source,
+    DATEDIFF(DAY, CAST(src.event_date AS DATE), GETDATE()) AS campaign_duration,
+    src.spend,
+    src.impressions,
+    src.clicks,
+    src.revenue
+FROM unified_source src
+LEFT JOIN gold.dim_campaign_name dim 
+    ON src.raw_campaign_name = dim.raw_campaign_name;
+GO
+
+-- Quick Check
+SELECT TOP 20 * FROM gold.fact_marketing_performance
+ORDER BY event_date DESC;
