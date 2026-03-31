@@ -1,0 +1,150 @@
+# /*
+
+LUMINAE BEAUTY: GOLD LAYER VALIDATION SCRIPT
+Purpose:
+- Validates Star Schema integrity
+- Ensures fact-to-dimension relationships are consistent
+- Confirms data is ready for KPI calculations
+=============================================
+
+*/
+
+---
+
+ -- 1. DIMENSION VALIDATION: Duplicate Keys
+
+-- Campaign Dimension
+SELECT campaign_key, COUNT(*) AS duplicate_count
+FROM gold.dim_campaign_name
+GROUP BY campaign_key
+HAVING COUNT(*) > 1;
+
+-- Product Dimension
+SELECT product_key, COUNT(*) AS duplicate_count
+FROM gold.dim_products
+GROUP BY product_key
+HAVING COUNT(*) > 1;
+
+-- Source Dimension
+SELECT source_key, COUNT(*) AS duplicate_count
+FROM gold.dim_sources
+GROUP BY source_key
+HAVING COUNT(*) > 1;
+
+-- Date Dimension
+SELECT date_key, COUNT(*) AS duplicate_count
+FROM gold.dim_date
+GROUP BY date_key
+HAVING COUNT(*) > 1;
+
+---
+
+ -- 2. FACT VALIDATION: Null Foreign Keys
+
+-- Orders → Campaign
+SELECT COUNT(*) AS missing_campaign_keys
+FROM gold.fact_orders
+WHERE campaign_key IS NULL;
+
+-- Orders → Product
+SELECT COUNT(*) AS missing_product_keys
+FROM gold.fact_orders
+WHERE product_key IS NULL;
+
+-- Web Events → Source
+SELECT COUNT(*) AS missing_source_keys
+FROM gold.fact_web_events
+WHERE source_key IS NULL;
+
+-- Marketing → Campaign
+SELECT COUNT(*) AS missing_campaign_keys
+FROM gold.fact_marketing_performance
+WHERE campaign_key IS NULL;
+
+---
+
+ -- 3. REFERENTIAL INTEGRITY CHECKS
+
+-- Orders → Campaign
+SELECT COUNT(*) AS orphan_campaigns
+FROM gold.fact_orders fo
+LEFT JOIN gold.dim_campaign_name dc
+ON fo.campaign_key = dc.campaign_key
+WHERE dc.campaign_key IS NULL;
+
+-- Orders → Product
+SELECT COUNT(*) AS orphan_products
+FROM gold.fact_orders fo
+LEFT JOIN gold.dim_products dp
+ON fo.product_key = dp.product_key
+WHERE dp.product_key IS NULL;
+
+-- Web Events → Source
+SELECT COUNT(*) AS orphan_sources
+FROM gold.fact_web_events we
+LEFT JOIN gold.dim_sources ds
+ON we.source_key = ds.source_key
+WHERE ds.source_key IS NULL;
+
+---
+ -- 4. DATA VOLUME CHECKS
+
+SELECT 'fact_orders' AS table_name, COUNT(*) AS row_count FROM gold.fact_orders
+UNION ALL
+SELECT 'fact_marketing_performance', COUNT(*) FROM gold.fact_marketing_performance
+UNION ALL
+SELECT 'fact_web_events', COUNT(*) FROM gold.fact_web_events;
+
+---
+
+ -- 5. KPI SANITY CHECKS
+
+-- Total Revenue
+SELECT SUM(net_revenue) AS total_revenue
+FROM gold.fact_orders;
+
+-- Total Spend
+SELECT SUM(spend) AS total_spend
+FROM gold.fact_marketing_performance;
+
+-- ROAS Check
+SELECT
+SUM(platform_attributed_revenue) / NULLIF(SUM(spend),0) AS roas
+FROM gold.fact_marketing_performance;
+
+-- AOV Check
+SELECT
+SUM(net_revenue) / COUNT(DISTINCT order_id) AS avg_order_value
+FROM gold.fact_orders;
+
+-- Conversion Rate Check
+SELECT
+SUM(converted) * 1.0 / NULLIF(SUM(sessions),0) AS conversion_rate
+FROM gold.fact_web_events;
+
+---
+
+ -- 6. DATE COVERAGE VALIDATION
+
+SELECT
+MIN(date_key) AS min_date,
+MAX(date_key) AS max_date
+FROM gold.fact_orders;
+
+SELECT
+MIN(date_key) AS min_date,
+MAX(date_key) AS max_date
+FROM gold.fact_marketing_performance;
+
+SELECT
+MIN(date_key) AS min_date,
+MAX(date_key) AS max_date
+FROM gold.fact_web_events;
+
+---
+
+ -- 7. SAMPLE DATA CHECK (Quick Inspection)
+
+SELECT TOP 10 * FROM gold.fact_orders;
+SELECT TOP 10 * FROM gold.fact_marketing_performance;
+SELECT TOP 10 * FROM gold.fact_web_events;
