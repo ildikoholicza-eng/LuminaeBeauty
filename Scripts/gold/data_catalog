@@ -1,0 +1,155 @@
+# Data Catalog — Luminae Beauty (Gold Layer)
+
+## Overview
+This data catalog documents the **Gold Layer (Star Schema)** for the *Luminae Beauty Omni-Channel Marketing & Sales Analytics* project.
+
+The Gold Layer is **analytics-ready**, built on top of cleaned Silver layer data, and is structured into:
+- **Dimension tables** (context: campaign, product, date, source)
+- **Fact tables** (measurable performance: orders, marketing, web events)
+
+---
+
+# DIMENSION TABLES
+
+---
+
+##  `gold.dim_date`
+
+**Purpose:** Standardized calendar dimension used across all fact tables for time-based analysis.
+
+| Column Name | Data Type | Description |
+|-------------|----------|-------------|
+| date_key | INT | Surrogate key in YYYYMMDD format (e.g., 20260131) |
+| full_date | DATE | Actual calendar date |
+| year_int | INT | Year extracted from date |
+| month_name | VARCHAR | Full month name (e.g., January) |
+| month_int | INT | Month number (1–12) |
+| weekday_int | INT | Day of week (1–7 depending on SQL server settings) |
+| is_weekend | BIT / INT | Flag indicating weekend (1 = weekend, 0 = weekday) |
+
+---
+
+##  `gold.dim_campaign_name`
+
+**Purpose:** Standardized marketing campaign dimension across all channels (Email, Meta, Google).
+
+| Column Name | Data Type | Description |
+|-------------|----------|-------------|
+| campaign_key | INT | Surrogate key generated via HASH (CHECKSUM) |
+| raw_campaign_name | VARCHAR | Original campaign name from source systems |
+| standard_campaign_name | VARCHAR | Normalized campaign grouping (e.g., Newsletter, Flash Sale) |
+| campaign_objective | VARCHAR | Business goal classification (brand_awareness, conversions, traffic) |
+| source_platform | VARCHAR | Platform source (Email, Meta, Google) |
+| start_date | DATE | First observed date of campaign activity |
+| end_date | DATE | Last observed date of campaign activity |
+
+---
+
+##  `gold.dim_products`
+
+**Purpose:** Product hierarchy and categorization for ecommerce analytics.
+
+| Column Name | Data Type | Description |
+|-------------|----------|-------------|
+| product_key | INT | Surrogate product identifier (HASH of SKU + name) |
+| product_sku | VARCHAR | Stock Keeping Unit identifier |
+| product_name | VARCHAR | Product name |
+| category | VARCHAR | Product category (Serums, Moisturisers, Toners, Skincare) |
+
+---
+
+##  `gold.dim_sources`
+
+**Purpose:** Web traffic source classification for attribution and channel analysis.
+
+| Column Name | Data Type | Description |
+|-------------|----------|-------------|
+| source_key | INT | Surrogate key (HASH of source attributes) |
+| source_name | VARCHAR | Traffic source (e.g., google, facebook) |
+| medium | VARCHAR | Marketing medium (e.g., cpc, organic, email) |
+| channel_grouping | VARCHAR | High-level channel grouping |
+| device_type | VARCHAR | Device category (mobile, desktop, tablet) |
+
+---
+
+#  FACT TABLES
+
+---
+
+##  `gold.fact_marketing_performance`
+
+**Purpose:** Unified marketing performance metrics across Google Ads, Meta Ads, and Email.
+
+| Column Name | Data Type | Description |
+|-------------|----------|-------------|
+| campaign_key | INT | Foreign key to `dim_campaign_name` |
+| date_key | INT | Foreign key to `dim_date` (YYYYMMDD) |
+| channel_source | VARCHAR | Marketing channel (Google, Meta, Email) |
+| spend | DECIMAL / FLOAT | Total advertising spend |
+| impressions | INT | Number of ad impressions |
+| clicks | INT | Number of clicks |
+| platform_attributed_revenue | DECIMAL / FLOAT | Revenue attributed to platform activity |
+
+---
+
+## `gold.fact_orders`
+
+**Purpose:** Ecommerce order-level transactional fact table.
+
+| Column Name | Data Type | Description |
+|-------------|----------|-------------|
+| order_line_id | INT | Surrogate row identifier (window function generated) |
+| order_id | VARCHAR | Cleaned order identifier |
+| date_key | INT | Foreign key to `dim_date` |
+| product_key | INT | Foreign key to `dim_products` |
+| campaign_key | INT | Foreign key to `dim_campaign_name` |
+| customer_id | VARCHAR | Unique customer identifier |
+| order_status | VARCHAR | Status of order (completed, cancelled, etc.) |
+| quantity | INT | Units purchased |
+| unit_price_gbp | DECIMAL | Price per unit in GBP |
+| net_revenue | DECIMAL | Total order value (GBP) |
+| is_new_customer | BIT / INT | Flag for first-time customer |
+| attributed_channel | VARCHAR | Channel attribution |
+| attributed_source | VARCHAR | Source attribution |
+
+---
+
+##  `gold.fact_web_events`
+
+**Purpose:** Website behavioral analytics at session/event level.
+
+| Column Name | Data Type | Description |
+|-------------|----------|-------------|
+| event_id | INT | Surrogate event identifier |
+| session_id | VARCHAR | Web session identifier |
+| date_key | INT | Foreign key to `dim_date` |
+| campaign_key | INT | Foreign key to `dim_campaign_name` |
+| source_key | INT | Foreign key to `dim_sources` |
+| user_id | VARCHAR | Anonymous or logged-in user ID |
+| landing_page | VARCHAR | First page visited in session |
+| country | VARCHAR | User geographic location |
+| new_vs_returning | VARCHAR | User type classification |
+| pageviews | INT | Number of pages viewed |
+| sessions | INT | Session count |
+| bounce | BIT / INT | Bounce indicator (1 = bounced) |
+| time_on_site_secs | INT | Time spent on site in seconds |
+| converted | BIT / INT | Conversion flag |
+| order_value_gbp | DECIMAL | Revenue generated from session |
+
+---
+
+#  Notes on Design
+- All **fact tables use surrogate keys** from dimensions for consistency and performance.
+- `date_key` uses **YYYYMMDD integer format** for efficient joins.
+- Campaign and product dimensions use **HASH-based surrogate keys (CHECKSUM)**.
+- Schema follows a **Star Schema model optimized for BI tools (Power BI, Tableau, Looker)**.
+
+---
+
+#  Key KPIs Supported
+- ROAS (Return on Ad Spend)
+- CPA (Cost per Acquisition)
+- AOV (Average Order Value)
+- Conversion Rate
+- Revenue attribution by channel & campaign
+- Customer acquisition trends
