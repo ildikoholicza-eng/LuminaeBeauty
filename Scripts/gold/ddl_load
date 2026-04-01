@@ -43,43 +43,59 @@ GO
 
 ---
 
- -- 2. DIMENSION: gold.dim_campaign_name
-
-IF OBJECT_ID('gold.dim_campaign_name', 'V') IS NOT NULL DROP VIEW gold.dim_campaign_name;
+--2.Dimension dim_campaign_name
+IF OBJECT_ID('gold.dim_campaign_name', 'V') IS NOT NULL 
+    DROP VIEW gold.dim_campaign_name;
 GO
 
 CREATE VIEW gold.dim_campaign_name AS
 WITH combined_campaign AS (
-SELECT campaign_name AS raw_name, send_date AS c_date, 'Email' AS platform FROM silver.email_analytics
-UNION ALL
-SELECT campaign_name, report_date, 'Meta' FROM silver.meta_ads
-UNION ALL
-SELECT campaign, event_date, 'Google' FROM silver.google_ppc
+    SELECT campaign_name AS raw_name, send_date AS c_date, 'Email' AS platform FROM silver.email_analytics
+    UNION ALL
+    SELECT campaign_name, report_date, 'Meta' FROM silver.meta_ads
+    UNION ALL
+    SELECT campaign, event_date, 'Google' FROM silver.google_ppc
+),
+cleaned AS (
+    SELECT
+        CASE 
+            WHEN raw_name IS NULL OR raw_name = '' THEN 'unknown'
+            ELSE LOWER(LTRIM(RTRIM(raw_name)))
+        END AS raw_name,
+        platform,
+        c_date
+    FROM combined_campaign
 )
 SELECT
-ABS(CHECKSUM(raw_name)) AS campaign_key,
-raw_name AS raw_campaign_name,
-CASE
-WHEN raw_name LIKE 'wel%' THEN 'Welcome Series'
-WHEN raw_name LIKE '%newsletter%' THEN 'Newsletter'
-WHEN raw_name LIKE '%flash_sale%' THEN 'Flash Sale'
-WHEN raw_name LIKE '%abandon%' THEN 'Cart Abandoned'
-WHEN raw_name LIKE '%vip%' THEN 'Loyalty'
-WHEN raw_name LIKE '%serum%' THEN 'Serum Promo'
-WHEN raw_name LIKE '%moisturiser%' THEN 'Moisturiser Promo'
-ELSE 'General Awareness'
-END AS standard_campaign_name,
-CASE
-WHEN raw_name LIKE '%awareness%' OR raw_name LIKE '%brand%' THEN 'brand_awareness'
-WHEN raw_name LIKE '%cart%' OR raw_name LIKE '%sale%' THEN 'conversions'
-ELSE 'traffic'
-END AS campaign_objective,
-platform AS source_platform,
-MIN(c_date) AS start_date,
-MAX(c_date) AS end_date
-FROM combined_campaign
+    ABS(CHECKSUM(raw_name, platform)) AS campaign_key,   -- ✅ FIXED KEY
+
+    raw_name AS raw_campaign_name,
+
+    CASE
+        WHEN raw_name LIKE 'wel%' THEN 'Welcome Series'
+        WHEN raw_name LIKE '%newsletter%' THEN 'Newsletter'
+        WHEN raw_name LIKE '%flash_sale%' THEN 'Flash Sale'
+        WHEN raw_name LIKE '%abandon%' THEN 'Cart Abandoned'
+        WHEN raw_name LIKE '%vip%' THEN 'Loyalty'
+        WHEN raw_name LIKE '%serum%' THEN 'Serum Promo'
+        WHEN raw_name LIKE '%moisturiser%' THEN 'Moisturiser Promo'
+        ELSE 'General Awareness'
+    END AS standard_campaign_name,
+
+    CASE
+        WHEN raw_name LIKE '%awareness%' OR raw_name LIKE '%brand%' THEN 'brand_awareness'
+        WHEN raw_name LIKE '%cart%' OR raw_name LIKE '%sale%' THEN 'conversions'
+        ELSE 'traffic'
+    END AS campaign_objective,
+
+    platform AS source_platform,
+    MIN(c_date) AS start_date,
+    MAX(c_date) AS end_date
+
+FROM cleaned
 GROUP BY raw_name, platform;
 GO
+
 
 ---
 
