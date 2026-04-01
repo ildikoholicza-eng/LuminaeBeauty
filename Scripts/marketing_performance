@@ -1,0 +1,88 @@
+/* ===============================================================================
+MASTER MARKETING PERFORMANCE VIEW
+Goal: Combine Marketing Spend, Web Traffic, and Sales into one flat table.
+Logic: Join all Fact CTEs to Date and Campaign dimensions.
+=============================================================================== */
+
+IF OBJECT_ID('marketing_performance_view', 'V') IS NOT NULL
+  DROP VIEW marketing_performance_view ;
+  GO
+
+ CREATE VIEW marketing_performance_view
+ AS
+
+
+WITH cte_marketing_spend AS (
+    SELECT 
+        date_key,
+        campaign_key,
+        SUM(spend) AS total_spend,
+        SUM(impressions) AS total_impression,
+        SUM(clicks) AS total_clicks
+    FROM gold.fact_marketing_performance
+    GROUP BY date_key, campaign_key
+), -- Use a comma to separate, NOT a new "WITH"
+cte_web_performance AS (
+    SELECT
+        date_key,
+        campaign_key,
+        COUNT(DISTINCT session_id) AS total_sessions,
+        COUNT(DISTINCT user_id) AS total_users,
+        SUM(pageviews) AS total_pageviews,
+        SUM(bounce) AS total_bounce,
+        SUM(time_on_site_secs) AS total_time_on_site_secs,
+        SUM(converted) AS total_web_conversion,
+        SUM(order_value_gbp) AS total_order_value
+    FROM gold.fact_web_events
+    GROUP BY date_key, campaign_key
+),
+cte_orders_performance AS (
+    SELECT
+        date_key,
+        campaign_key,
+        COUNT(DISTINCT order_id) AS total_order_id,
+        COUNT(DISTINCT customer_id) AS total_customer_id,
+        SUM(quantity) AS total_quantity,
+        SUM(unit_price_gbp) AS total_unit_price,
+        SUM(net_revenue) AS total_net_revenue, -- Removed _gbp to match standard naming
+        SUM(CAST(is_new_customer AS INT)) AS total_new_customer -- Cast BIT to INT for SUM
+    FROM gold.fact_orders
+    GROUP BY date_key, campaign_key
+)
+
+SELECT
+    d.full_date,
+    d.month_name,
+    d.year_int,
+    c.raw_campaign_name,
+    c.standard_campaign_name,
+    c.campaign_objective,
+    c.source_platform,
+    -- Using ISNULL to ensure we have numbers, not NULLs, for Power BI
+    ISNULL(m.total_impression, 0) AS impressions,
+    ISNULL(m.total_spend, 0) AS spend_gbp,
+    ISNULL(m.total_clicks, 0) AS clicks,
+    ISNULL(w.total_sessions, 0) AS sessions,
+    ISNULL(w.total_users, 0) AS users,
+    ISNULL(w.total_pageviews, 0) AS pageviews,
+    ISNULL(w.total_bounce, 0) AS bounces,
+    ISNULL(w.total_time_on_site_secs, 0) AS time_onsite_sec,
+    ISNULL(w.total_web_conversion, 0) AS web_conversions,
+    ISNULL(w.total_order_value, 0) AS web_reported_order_gbp,
+    ISNULL(o.total_quantity, 0) AS quantity_sold,
+    ISNULL(o.total_net_revenue, 0) AS net_revenue_gbp,
+    ISNULL(o.total_new_customer, 0) AS new_customers
+FROM gold.dim_date d
+-- We cross join or join to campaigns to get the names for every date/campaign combo
+CROSS JOIN gold.dim_campaign_name c 
+LEFT JOIN cte_marketing_spend m 
+    ON d.date_key = m.date_key AND c.campaign_key = m.campaign_key
+LEFT JOIN cte_web_performance w 
+    ON d.date_key = w.date_key AND c.campaign_key = w.campaign_key
+LEFT JOIN cte_orders_performance o 
+    ON d.date_key = o.date_key AND c.campaign_key = o.campaign_key
+
+-- EXCLUDE ZEROS: Only show rows where something actually happened
+WHERE (ISNULL(m.total_spend, 0) > 0 
+   OR ISNULL(w.total_sessions, 0) > 0 
+   OR ISNULL(o.total_net_revenue, 0) > 0)
