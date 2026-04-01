@@ -1,0 +1,74 @@
+/* ===============================================================================
+SALES PERFORMANCE RECONCILIATION
+===============================================================================
+*/
+
+-- Check 1: Grand Total Revenue Match
+-- This check must result in a 0.00 Variance to prove no 'Join Drops' occurred.
+SELECT 
+    'Final Sales Audit' AS Metric,
+    (SELECT SUM(net_revenue) FROM gold.fact_orders) AS Total_Fact_Orders,
+    (SELECT SUM(net_revenue) FROM gold.sales_performance_view) AS Total_View_Revenue,
+    (SELECT SUM(net_revenue) FROM gold.fact_orders) - (SELECT SUM(net_revenue) FROM sales_performance_view) AS Variance;
+
+-- Check 2: Dimension Integrity (Product Orphan Check)
+-- Validates if any order_line_id is associated with a missing product_key.
+SELECT 
+    product_name,
+    category,
+    SUM(net_revenue) AS Revenue
+FROM sales_performance_view
+WHERE product_name = 'Unknown Product'
+GROUP BY product_name, category;
+
+-- Check 3: Source Labeling Check
+-- Ensures 'Direct / Organic' labels are correctly applied to orders with NULL campaign_keys.
+SELECT 
+    source_name, 
+    channel_grouping, 
+    SUM(net_revenue) AS Revenue
+FROM sales_performance_view
+WHERE source_name = 'Direct / Organic'
+GROUP BY source_name, channel_grouping;
+
+-- Check 4: Attribution Consistency
+-- Cross-references Fact-level attribution (attributed_source) against Dimension-level (source_name).
+SELECT 
+    attributed_source, 
+    source_name, 
+    SUM(net_revenue) AS Revenue
+FROM sales_performance_view
+GROUP BY attributed_source, source_name
+ORDER BY Revenue DESC;
+
+/* ===============================================================================
+MARKETING PERFORMANCE RECONCILIATION
+===============================================================================
+*/
+
+-- Check 1: Revenue Reconciliation (View vs. Fact Orders)
+-- Validates that the 336,152.06 total is preserved after joining Web and Spend data.
+SELECT 
+    'Revenue Reconciliation' AS Metric,
+    SUM(f.net_revenue) AS Source_Fact_Revenue,
+    (SELECT SUM(net_revenue) FROM marketing_performance_view) AS View_Revenue,
+    SUM(f.net_revenue) - (SELECT SUM(net_revenue) FROM marketing_performance_view) AS Variance
+FROM gold.fact_orders f;
+
+-- Check 2: Spend Reconciliation (View vs. Fact Marketing Spend)
+-- Validates that ad spend from the source matches the aggregated view.
+SELECT 
+    'Ad Spend Reconciliation' AS Metric,
+    SUM(s.spend_gbp) AS Source_Fact_Spend,
+    (SELECT SUM(total_spend_gbp) FROM marketing_performance_view) AS View_Spend,
+    SUM(s.spend_gbp) - (SELECT SUM(total_spend_gbp) FROM marketing_performance_view) AS Variance
+FROM gold.fact_marketing_spend s;
+
+-- Check 3: Attribution Grain Check
+-- Identifies revenue labeled as 'Organic' due to missing campaign_keys.
+SELECT 
+    channel_grouping,
+    SUM(net_revenue) AS Revenue
+FROM marketing_performance_view
+WHERE channel_grouping = 'Organic' OR source_name = 'Direct / Organic'
+GROUP BY channel_grouping;
