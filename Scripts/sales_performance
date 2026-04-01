@@ -1,0 +1,61 @@
+/* ===============================================================================
+SALES PERFORMANCE VIEW 
+Goal: Unified sales reporting with Product, Date, and Source details.
+Logic: LEFT JOINs with NULL handling to ensure 100% revenue reconciliation.
+=============================================================================== */
+
+IF OBJECT_ID('sales_performance_view', 'V') IS NOT NULL
+    DROP VIEW sales_performance_view;
+GO
+
+CREATE VIEW sales_performance_view
+AS
+
+SELECT
+    -- 1. Order Details
+    f.order_id,
+    f.order_line_id,
+    f.order_status,
+    f.is_new_customer,
+
+    -- 2. Date Dimensions (The "When")
+    d.full_date,
+    d.year_int,
+    d.month_name,
+    d.is_weekend,
+
+    -- 3. Product Dimensions (The "What")
+    ISNULL(p.product_name, 'Unknown Product') AS product_name,
+    p.product_sku,
+    p.category,
+
+    -- 4. Source & Attribution (The "Where")
+    -- Replacing NULLs with 'Direct / Organic' for professional dashboarding
+    ISNULL(s.source_name, 'Direct / Organic') AS source_name,
+    ISNULL(s.medium, 'none') AS medium,
+    ISNULL(s.channel_grouping, 'Organic') AS channel_grouping,
+    s.device_type,
+    
+    -- Fact-level attribution for cross-referencing
+    f.attributed_channel,
+    f.attributed_source,
+
+    -- 5. Financial Metrics
+    f.quantity,
+    f.unit_price_gbp,
+    f.net_revenue
+
+FROM gold.fact_orders f
+
+-- JOIN 1: Date Dimension
+LEFT JOIN gold.dim_date d 
+    ON f.date_key = d.date_key
+
+-- JOIN 2: Product Dimension (Standardizing NULL/Unknown keys)
+LEFT JOIN gold.dim_products p 
+    ON ISNULL(f.product_key, -1) = ISNULL(p.product_key, -1)
+
+-- JOIN 3: Source Dimension (Mapping campaign_key to source_key)
+LEFT JOIN gold.dim_sources s 
+    ON ISNULL(f.campaign_key, -1) = ISNULL(s.source_key, -1);
+GO
